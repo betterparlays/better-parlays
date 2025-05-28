@@ -14,29 +14,47 @@ const leagueMap: { [key: string]: string } = {
   NCAAWB: "basketball_ncaaw",
 };
 
+const sportsbooks = ["Caesars Sportsbook", "Tropicana Sportsbook", "Bet Parx"];
+
 export default function HomePage() {
   const [selectedLeague, setSelectedLeague] = useState("NBA");
-  const [odds, setOdds] = useState([]);
+  const [odds, setOdds] = useState<any[]>([]);
   const [parlay, setParlay] = useState<any[]>([]);
   const [oddsView, setOddsView] = useState("American");
+  const [randomBook, setRandomBook] = useState("");
 
   useEffect(() => {
     fetch(`/api/odds?sport=${leagueMap[selectedLeague]}`)
       .then((res) => res.json())
-      .then((data) => setOdds(data))
-      .catch((err) => console.error("Odds fetch error:", err));
+      .then((data) => setOdds(Array.isArray(data) ? data : []))
+      .catch((err) => {
+        console.error("Odds fetch error:", err);
+        setOdds([]);
+      });
   }, [selectedLeague]);
 
   const addToParlay = (gameId: string, outcome: any) => {
-    setParlay((prev) => [...prev, { gameId, ...outcome }]);
+    setParlay((prev) => {
+      const updated = [...prev, { gameId, ...outcome }];
+      if (updated.length === 2) {
+        const random = sportsbooks[Math.floor(Math.random() * sportsbooks.length)];
+        setRandomBook(random);
+      }
+      return updated;
+    });
   };
 
   const removeFromParlay = (indexToRemove: number) => {
-    setParlay((prev) => prev.filter((_, index) => index !== indexToRemove));
+    setParlay((prev) => {
+      const updated = prev.filter((_, index) => index !== indexToRemove);
+      if (updated.length < 2) setRandomBook("");
+      return updated;
+    });
   };
 
   const clearParlay = () => {
     setParlay([]);
+    setRandomBook("");
   };
 
   const calculateParlayOddsDecimal = (): number => {
@@ -78,16 +96,10 @@ export default function HomePage() {
             </text>
           </svg>
         </div>
-        <ul className="flex flex-wrap justify-end gap-x-6 text-sm md:text-sm text-xs font-medium text-black">
-          <li>
-            <Link href="/promotions" className="hover:underline whitespace-nowrap">Promotions</Link>
-          </li>
-          <li>
-            <Link href="/our-picks" className="hover:underline whitespace-nowrap">Our Picks</Link>
-          </li>
-          <li>
-            <Link href="/sign-up" className="hover:underline whitespace-nowrap">Sign Up</Link>
-          </li>
+        <ul className="flex flex-wrap justify-end gap-x-6 text-sm font-medium text-black">
+          <li><Link href="/promotions" className="hover:underline">Promotions</Link></li>
+          <li><Link href="/our-picks" className="hover:underline">Our Picks</Link></li>
+          <li><Link href="/sign-up" className="hover:underline">Sign Up</Link></li>
         </ul>
       </nav>
 
@@ -123,8 +135,8 @@ export default function HomePage() {
         {/* Upcoming Games Section */}
         <div className="w-full max-w-3xl mt-10">
           <h2 className="text-lg font-bold mb-4">Upcoming Games</h2>
-          {odds.length === 0 ? (
-            <p className="text-sm text-gray-500">Loading games...</p>
+          {!Array.isArray(odds) || odds.length === 0 ? (
+            <p className="text-sm text-gray-500">Check back later for {selectedLeague} matchups.</p>
           ) : (
             <ul className="space-y-4">
               {odds.slice(0, 3).map((game: any) => (
@@ -133,7 +145,7 @@ export default function HomePage() {
                   <div className="text-sm text-gray-700 space-y-1">
                     {game.bookmakers?.[0]?.markets?.[0]?.outcomes?.map((outcome: any) => (
                       <div key={outcome.name} className="flex justify-between items-center">
-                        <span>{outcome.name}: <span className="font-medium">{decimalToAmerican(outcome.price)}</span></span>
+                        <span>{outcome.name}</span>
                         <button
                           className="text-xs px-2 py-1 bg-black text-white rounded hover:bg-gray-800"
                           onClick={() => addToParlay(game.id, outcome)}
@@ -159,7 +171,7 @@ export default function HomePage() {
               <ul className="space-y-2 mb-4">
                 {parlay.map((pick, index) => (
                   <li key={index} className="flex justify-between items-center border border-gray-300 px-4 py-2 rounded-md">
-                    <span>{pick.name} @ {decimalToAmerican(pick.price)}</span>
+                    <span>{pick.name}</span>
                     <button
                       className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
                       onClick={() => removeFromParlay(index)}
@@ -180,9 +192,18 @@ export default function HomePage() {
                   <option value="American">American</option>
                 </select>
               </div>
-              <div className="text-sm font-semibold mb-4">
-                Parlay Odds ({oddsView}): {getFormattedOdds()}
-              </div>
+              {parlay.length >= 2 && (
+                <div className="text-sm font-semibold mb-4 space-y-2">
+                  <div>Parlay Odds ({oddsView}): {getFormattedOdds()}</div>
+                  <div className="text-xs text-gray-600">Book: {randomBook}</div>
+                  <button
+                    className="mt-2 text-xs px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    onClick={() => window.open("https://example.com", "_blank")}
+                  >
+                    Click Here to Sign Up to {randomBook}
+                  </button>
+                </div>
+              )}
               <button
                 className="text-xs px-3 py-1 bg-gray-200 text-black rounded hover:bg-gray-300"
                 onClick={clearParlay}
