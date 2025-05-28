@@ -65,12 +65,6 @@ export default function HomePage() {
     }, 1);
   };
 
-  const decimalToAmerican = (decimal: number): string => {
-    if (decimal >= 2.0) return `+${Math.floor((decimal - 1) * 100)}`;
-    if (decimal > 1.0) return `-${Math.floor(100 / (decimal - 1))}`;
-    return "N/A";
-  };
-
   const getFormattedOdds = (): string => {
     const decimalOdds = calculateParlayOddsDecimal();
     if (decimalOdds === 0) return "0.00";
