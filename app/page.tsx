@@ -79,8 +79,8 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-white text-black font-sans">
       {/* Navbar */}
-      <nav className="flex justify-between items-center px-8 py-6 border-b border-black">
-        <div className="w-48 h-20">
+      <nav className="flex justify-between items-center px-4 sm:px-6 md:px-8 py-6 border-b border-black">
+        <div className="w-40 h-16 sm:w-48 sm:h-20">
           <svg viewBox="-10 0 340 100" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
             <text x="16" y="42" fontSize="50" fontWeight="1000" fill="#d1d5db" transform="skewX(-25)">
               BETTER
@@ -90,10 +90,16 @@ export default function HomePage() {
             </text>
           </svg>
         </div>
-        <ul className="flex flex-wrap justify-end gap-x-6 text-sm font-medium text-black">
-          <li><Link href="/promotions" className="hover:underline">Promotions</Link></li>
-          <li><Link href="/our-picks" className="hover:underline">Our Picks</Link></li>
-          <li><Link href="/sign-up" className="hover:underline">Sign Up</Link></li>
+        <ul className="flex flex-nowrap justify-end gap-x-4 sm:gap-x-6 text-xs sm:text-sm font-medium text-black">
+          <li className="whitespace-nowrap">
+            <Link href="/promotions" className="hover:underline">Promotions</Link>
+          </li>
+          <li className="whitespace-nowrap">
+            <Link href="/our-picks" className="hover:underline">Our Picks</Link>
+          </li>
+          <li className="whitespace-nowrap">
+            <Link href="/sign-up" className="hover:underline">Sign Up</Link>
+          </li>
         </ul>
       </nav>
 

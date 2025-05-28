@@ -11,31 +11,31 @@ export default function OurPicks() {
   return (
     <div className="min-h-screen bg-white text-black font-sans">
       {/* Navbar */}
-      <nav className="flex justify-between items-center px-8 py-6 border-b border-black">
-        <div className="w-48 h-20">
-          <Link href="/">
-            <svg viewBox="-10 0 340 100" xmlns="http://www.w3.org/2000/svg" className="w-full h-full cursor-pointer">
-              <text x="16" y="42" fontSize="50" fontWeight="1000" fill="#d1d5db" transform="skewX(-25)">
-                BETTER
-              </text>
-              <text x="31" y="94" fontSize="50" fontWeight="1000" fill="#d1d5db" transform="skewX(-25)">
-                PARLAYS
-              </text>
-            </svg>
-          </Link>
-        </div>
-        <ul className="flex flex-wrap justify-end gap-x-6 text-sm md:text-sm text-xs font-medium text-black">
-          <li>
-            <Link href="/promotions" className="hover:underline whitespace-nowrap">Promotions</Link>
-          </li>
-          <li>
-            <Link href="/our-picks" className="hover:underline whitespace-nowrap">Our Picks</Link>
-          </li>
-          <li>
-            <Link href="/sign-up" className="hover:underline whitespace-nowrap">Sign Up</Link>
-          </li>
-        </ul>
-      </nav>
+        <nav className="flex justify-between items-center px-4 sm:px-6 md:px-8 py-6 border-b border-black">
+            <div className="w-40 h-16 sm:w-48 sm:h-20">
+            <Link href="/">
+                <svg viewBox="-10 0 340 100" xmlns="http://www.w3.org/2000/svg" className="w-full h-full cursor-pointer">
+                <text x="16" y="42" fontSize="50" fontWeight="1000" fill="#d1d5db" transform="skewX(-25)">
+                    BETTER
+                </text>
+                <text x="31" y="94" fontSize="50" fontWeight="1000" fill="#d1d5db" transform="skewX(-25)">
+                    PARLAYS
+                </text>
+                </svg>
+            </Link>
+            </div>
+            <ul className="flex flex-nowrap justify-end gap-x-4 sm:gap-x-6 text-xs sm:text-sm font-medium text-black">
+            <li className="whitespace-nowrap">
+                <Link href="/promotions" className="hover:underline">Promotions</Link>
+            </li>
+            <li className="whitespace-nowrap">
+                <Link href="/our-picks" className="hover:underline">Our Picks</Link>
+            </li>
+            <li className="whitespace-nowrap">
+                <Link href="/sign-up" className="hover:underline">Sign Up</Link>
+            </li>
+            </ul>
+        </nav>
 
       {/* Picks Content */}
       <div className="p-8 space-y-8">
