@@ -28,45 +28,54 @@ export default function HomePage() {
   useEffect(() => {
     fetch(`/api/odds?sport=${leagueMap[selectedLeague]}`)
       .then((res) => res.json())
-      .then((data) => setOdds(Array.isArray(data) ? data : []))
+      .then((data) => {
+        console.log("📦 Raw odds data:", data); // 👈 Log here
+        setOdds(Array.isArray(data) ? data : []);
+      })
       .catch((err) => {
         console.error("Odds fetch error:", err);
         setOdds([]);
       });
-  }, [selectedLeague]);
+  }, [selectedLeague]);  
   
   useEffect(() => {
-    const fetchRecords = async () => {
-      if (!Array.isArray(odds) || odds.length === 0) return;
+    fetch(`/api/odds?sport=${leagueMap[selectedLeague]}`)
+      .then((res) => res.json())
+      .then(async (data) => {
+        const games = Array.isArray(data) ? data.slice(0, 3) : []; // Limit to first 3 games
+        setOdds(games);
   
-      const uniqueTeams = new Set<string>();
-      odds.forEach((game: any) => {
-        uniqueTeams.add(game.home_team);
-        uniqueTeams.add(game.away_team);
-      });
+        // 🔍 Extract only the teams from the displayed games
+        const uniqueTeams = new Set<string>();
+        games.forEach((game: any) => {
+          uniqueTeams.add(game.home_team);
+          uniqueTeams.add(game.away_team);
+        });
   
-      const records: { [key: string]: { wins: number; losses: number } } = {};
-      for (const team of uniqueTeams) {
-        try {
-          const res = await fetch(
-            `/api/team-record?team=${encodeURIComponent(team)}&league=${selectedLeague}`
-          );
-          const json = await res.json();
-          if (res.ok) {
-            records[team] = { wins: json.wins, losses: json.losses };
-          } else {
-            console.warn(`Failed to fetch record for ${team}:`, json.error);
+        const records: any = {};
+        for (const team of uniqueTeams) {
+          try {
+            const res = await fetch(
+              `/api/team-record?team=${encodeURIComponent(team)}&league=${selectedLeague}`
+            );
+            const json = await res.json();
+            if (res.ok) {
+              records[team] = { wins: json.wins, losses: json.losses };
+            } else {
+              console.warn(`Failed to fetch record for ${team}:`, json.error);
+            }
+          } catch (err) {
+            console.error(`Fetch error for ${team}:`, err);
           }
-        } catch (err) {
-          console.error(`Fetch error for ${team}:`, err);
         }
-      }
   
-      setTeamRecords(records);
-    };
-  
-    fetchRecords();
-  }, [odds, selectedLeague]);
+        setTeamRecords(records);
+      })
+      .catch((err) => {
+        console.error("Odds fetch error:", err);
+        setOdds([]);
+      });
+  }, [selectedLeague]);  
   
 
   const addToParlay = (gameId: string, outcome: any) => {
@@ -178,10 +187,22 @@ export default function HomePage() {
               {odds.slice(0, 3).map((game: any) => (
                 <li key={game.id} className="border border-black p-4 rounded-md shadow-sm">
                 {/* Matchup Line */}
-                <div className="font-semibold mb-1">
-                  {game.home_team} vs {game.away_team}
+                <div className="mb-1">
+                <div className="font-semibold">
+                    {game.home_team} vs {game.away_team}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {new Date(game.commence_time).toLocaleString("en-US", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                      hour12: true,
+                      timeZoneName: "short",
+                    })}
+                  </div>
                 </div>
-              
                 {/* Team Records Below and Betting Outcomes*/}
                 <div className="text-sm text-gray-700 space-y-1">
                   {game.bookmakers?.[0]?.markets?.[0]?.outcomes?.map((outcome: any) => (
