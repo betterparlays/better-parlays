@@ -26,7 +26,7 @@ export const fetchTeamRecord = async (oddsApiTeamName: string, leagueKey: string
   );
 
   // 🔄 Normalize response shape across sports
-  let raw = res.data.response;
+  const raw = res.data.response;
 
   // 🐛 Optional debug output to inspect API shape
   // console.log(`${leagueKey} raw response shape:`, JSON.stringify(raw, null, 2).slice(0, 500));
