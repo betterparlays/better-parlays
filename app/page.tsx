@@ -22,6 +22,8 @@ export default function HomePage() {
   const [parlay, setParlay] = useState<any[]>([]);
   const [oddsView, setOddsView] = useState("American");
   const [randomBook, setRandomBook] = useState("");
+  const [teamRecords, setTeamRecords] = useState<{ [key: string]: { wins: number; losses: number } }>({});
+
 
   useEffect(() => {
     fetch(`/api/odds?sport=${leagueMap[selectedLeague]}`)
@@ -32,6 +34,40 @@ export default function HomePage() {
         setOdds([]);
       });
   }, [selectedLeague]);
+  
+  useEffect(() => {
+    const fetchRecords = async () => {
+      if (!Array.isArray(odds) || odds.length === 0) return;
+  
+      const uniqueTeams = new Set<string>();
+      odds.forEach((game: any) => {
+        uniqueTeams.add(game.home_team);
+        uniqueTeams.add(game.away_team);
+      });
+  
+      const records: { [key: string]: { wins: number; losses: number } } = {};
+      for (const team of uniqueTeams) {
+        try {
+          const res = await fetch(
+            `/api/team-record?team=${encodeURIComponent(team)}&league=${selectedLeague}`
+          );
+          const json = await res.json();
+          if (res.ok) {
+            records[team] = { wins: json.wins, losses: json.losses };
+          } else {
+            console.warn(`Failed to fetch record for ${team}:`, json.error);
+          }
+        } catch (err) {
+          console.error(`Fetch error for ${team}:`, err);
+        }
+      }
+  
+      setTeamRecords(records);
+    };
+  
+    fetchRecords();
+  }, [odds, selectedLeague]);
+  
 
   const addToParlay = (gameId: string, outcome: any) => {
     setParlay((prev) => {
@@ -141,21 +177,28 @@ export default function HomePage() {
             <ul className="space-y-4">
               {odds.slice(0, 3).map((game: any) => (
                 <li key={game.id} className="border border-black p-4 rounded-md shadow-sm">
-                  <div className="font-semibold mb-1">{game.home_team} vs {game.away_team}</div>
-                  <div className="text-sm text-gray-700 space-y-1">
-                    {game.bookmakers?.[0]?.markets?.[0]?.outcomes?.map((outcome: any) => (
-                      <div key={outcome.name} className="flex justify-between items-center">
-                        <span>{outcome.name}</span>
-                        <button
-                          className="text-xs px-2 py-1 bg-black text-white rounded hover:bg-gray-800"
-                          onClick={() => addToParlay(game.id, outcome)}
-                        >
-                          Add to Parlay
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </li>
+                {/* Matchup Line */}
+                <div className="font-semibold mb-1">
+                  {game.home_team} vs {game.away_team}
+                </div>
+              
+                {/* Team Records Below and Betting Outcomes*/}
+                <div className="text-sm text-gray-700 space-y-1">
+                  {game.bookmakers?.[0]?.markets?.[0]?.outcomes?.map((outcome: any) => (
+                    <div key={outcome.name} className="flex justify-between items-center">
+                      <span>
+                        {outcome.name} ({teamRecords[outcome.name]?.wins ?? "-"}-{teamRecords[outcome.name]?.losses ?? "-"})
+                      </span>
+                      <button
+                        className="text-xs px-2 py-1 bg-black text-white rounded hover:bg-gray-800"
+                        onClick={() => addToParlay(game.id, outcome)}
+                      >
+                        Add to Parlay
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </li>              
               ))}
             </ul>
           )}
