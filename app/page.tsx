@@ -278,6 +278,27 @@ export default function HomePage() {
           )}
         </div>
       </main>
+      <footer className="w-full border-t border-black mt-10 py-10 px-4 bg-white flex justify-center">
+        <div className="w-full max-w-screen-lg flex flex-col md:flex-row gap-8">
+
+          {/* Disclaimer Section */}
+          <aside className="flex-1 flex flex-col items-center md:items-start text-center md:text-left">
+            <h2 className="text-sm font-bold text-gray-500 mb-2">Disclaimer</h2>
+            <p className="text-xs text-gray-600">
+              Companies featured on this website may be our partners that compensate us if you sign up through our links. Must be 21+ and physically present in New Jersey to bet. If you or someone you know has a gambling problem and wants help, call <strong>1-800-GAMBLER</strong>. Please bet responsibly.
+            </p>
+          </aside>
+
+          {/* Links Section */}
+          <nav className="flex-1 flex flex-col items-center md:items-start text-xs gap-1">
+            <h2 className="text-sm font-bold text-gray-500 mb-2">Quick Links</h2>
+            <Link href="/promotions" className="hover:underline text-gray-700">Promotions</Link>
+            <Link href="/our-picks" className="hover:underline text-gray-700">Our Picks</Link>
+            <Link href="/sign-up" className="hover:underline text-gray-700">Sign Up</Link>
+            <Link href="/disclaimer" className="hover:underline text-gray-700">Disclaimer</Link>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 }
