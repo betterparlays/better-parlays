@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Menu, X } from "lucide-react";
 
 const leagues = ["NFL", "MLB", "NBA", "NHL", "NCAAF", "NCAAB", "NCAAWB"];
 const leagueMap: { [key: string]: string } = {
@@ -78,16 +79,32 @@ export default function HomePage() {
   }, [selectedLeague]);  
   
 
-  const addToParlay = (gameId: string, outcome: any) => {
+  const addToParlay = (gameId: string, outcome: any, marketType: string) => {
     setParlay((prev) => {
-      const updated = [...prev, { gameId, ...outcome }];
+      // Check if user already added a pick for this game + market
+      const alreadyExists = prev.some(
+        (pick) => pick.gameId === gameId && pick.marketType === marketType
+      );
+  
+      if (alreadyExists) {
+        console.warn(`You already have a ${marketType} pick for this game.`);
+        return prev; // do NOT add duplicate side
+      }
+  
+      const updated = [
+        ...prev,
+        { gameId, marketType, ...outcome },
+      ];
+  
       if (updated.length === 2) {
         const random = sportsbooks[Math.floor(Math.random() * sportsbooks.length)];
         setRandomBook(random);
       }
+  
       return updated;
     });
   };
+  
 
   const removeFromParlay = (indexToRemove: number) => {
     setParlay((prev) => {
@@ -121,31 +138,83 @@ export default function HomePage() {
     return decimalOdds.toFixed(2);
   };
 
+  const convertDecimalToAmerican = (decimal: number): string => {
+    if (decimal === 0 || isNaN(decimal)) return "-";
+    const profit = decimal - 1;
+    return profit >= 1
+      ? `+${(profit * 100).toFixed(0)}`
+      : `-${(100 / profit).toFixed(0)}`;
+  };
+  
+
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-white text-black font-sans">
       {/* Navbar */}
-      <nav className="flex justify-between items-center px-4 sm:px-6 md:px-8 py-6 border-b border-black">
-        <div className="w-40 h-16 sm:w-48 sm:h-20">
-          <svg viewBox="-10 0 340 100" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-            <text x="16" y="42" fontSize="50" fontWeight="1000" fill="#d1d5db" transform="skewX(-25)">
-              BETTER
-            </text>
-            <text x="31" y="94" fontSize="50" fontWeight="1000" fill="#d1d5db" transform="skewX(-25)">
-              PARLAYS
-            </text>
-          </svg>
+      <nav className="flex flex-col px-4 sm:px-6 md:px-8 py-6 border-b border-black">
+        <div className="flex justify-between items-center">
+          <div className="w-40 h-16 sm:w-48 sm:h-20">
+            <svg viewBox="-10 0 340 100" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+              <text x="16" y="42" fontSize="50" fontWeight="1000" fill="#d1d5db" transform="skewX(-25)">
+                BETTER
+              </text>
+              <text x="31" y="94" fontSize="50" fontWeight="1000" fill="#d1d5db" transform="skewX(-25)">
+                PARLAYS
+              </text>
+            </svg>
+          </div>
+
+          {/* Desktop Links */}
+          <ul className="hidden md:flex flex-nowrap justify-end gap-x-6 text-sm font-medium text-black">
+            <li>
+              <Link href="/promotions" className="hover:underline">Promotions</Link>
+            </li>
+            <li>
+              <Link href="/our-picks" className="hover:underline">Our Picks</Link>
+            </li>
+            <li>
+              <Link href="/sign-up" className="hover:underline">Sign Up</Link>
+            </li>
+          </ul>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="md:hidden text-black focus:outline-none"
+          >
+            {isMobileMenuOpen ? (
+              <X size={24} strokeWidth={1.5} />
+            ) : (
+              <Menu size={24} strokeWidth={1.5} />
+            )}
+          </button>
         </div>
-        <ul className="flex flex-nowrap justify-end gap-x-4 sm:gap-x-6 text-xs sm:text-sm font-medium text-black">
-          <li className="whitespace-nowrap">
-            <Link href="/promotions" className="hover:underline">Promotions</Link>
-          </li>
-          <li className="whitespace-nowrap">
-            <Link href="/our-picks" className="hover:underline">Our Picks</Link>
-          </li>
-          <li className="whitespace-nowrap">
-            <Link href="/sign-up" className="hover:underline">Sign Up</Link>
-          </li>
-        </ul>
+
+        {/* Mobile Dropdown Menu */}
+        <div
+          className={`overflow-hidden transition-all duration-300 ease-in-out ${
+            isMobileMenuOpen ? "max-h-40 opacity-100 mt-4" : "max-h-0 opacity-0"
+          } md:hidden`}
+        >
+          <ul className="flex flex-col items-center gap-y-4 text-sm font-medium text-black">
+            <li>
+              <Link href="/promotions" onClick={() => setIsMobileMenuOpen(false)} className="hover:underline">
+                Promotions
+              </Link>
+            </li>
+            <li>
+              <Link href="/our-picks" onClick={() => setIsMobileMenuOpen(false)} className="hover:underline">
+                Our Picks
+              </Link>
+            </li>
+            <li>
+              <Link href="/sign-up" onClick={() => setIsMobileMenuOpen(false)} className="hover:underline">
+                Sign Up
+              </Link>
+            </li>
+          </ul>
+        </div>
       </nav>
 
       {/* Main Content */}
@@ -179,63 +248,138 @@ export default function HomePage() {
 
         {/* Upcoming Games Section */}
         <div className="w-full max-w-3xl mt-10">
-          <h2 className="text-lg font-bold mb-4">Upcoming Games</h2>
+        <h2 className="text-lg font-bold mb-1">Upcoming {selectedLeague} Games</h2>
+          <p className="text-xs text-gray-500 mb-4">
+            Displayed odds are average market odds and may not reflect the most current odds
+          </p>
           {!Array.isArray(odds) || odds.length === 0 ? (
             <p className="text-sm text-gray-500">Check back later for {selectedLeague} matchups.</p>
           ) : (
             <ul className="space-y-4">
-              {odds.slice(0, 3).map((game: any) => (
-                <li key={game.id} className="border border-black p-4 rounded-md shadow-sm">
-                {/* Matchup Line */}
-                <div className="mb-1">
-                <div className="font-semibold">
-                    {game.home_team} vs {game.away_team}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {new Date(game.commence_time).toLocaleString("en-US", {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                      hour12: true,
-                      timeZoneName: "short",
-                    })}
-                  </div>
-                </div>
-                {/* Team Records Below and Betting Outcomes*/}
-                <div className="text-sm text-gray-700 space-y-1">
-                  {game.bookmakers?.[0]?.markets?.[0]?.outcomes?.map((outcome: any) => (
-                    <div key={outcome.name} className="flex justify-between items-center">
-                      <span>
-                        {outcome.name} ({teamRecords[outcome.name]?.wins ?? "-"}-{teamRecords[outcome.name]?.losses ?? "-"})
-                      </span>
-                      <button
-                        className="text-xs px-2 py-1 bg-black text-white rounded hover:bg-gray-800"
-                        onClick={() => addToParlay(game.id, outcome)}
-                      >
-                        Add to Parlay
-                      </button>
+              {odds.slice(0, 3).map((game: any) => {
+                const moneylineMarket = game.bookmakers?.[0]?.markets?.find((m: any) => m.key === "h2h");
+                const spreadMarket = game.bookmakers?.[0]?.markets?.find((m: any) => m.key === "spreads");
+                const totalMarket = game.bookmakers?.[0]?.markets?.find((m: any) => m.key === "totals");
+
+                const teams = [game.home_team, game.away_team];
+
+                return (
+                  <li key={game.id} className="border border-black p-4 rounded-md shadow-sm">
+                    {/* Matchup Line */}
+                    <div className="mb-1">
+                      <div className="font-semibold">
+                        {game.home_team} vs {game.away_team}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(game.commence_time).toLocaleString("en-US", {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                          timeZoneName: "short",
+                        })}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </li>              
-              ))}
+
+                    {/* Team Odds Row */}
+                    <div className="grid grid-cols-5 gap-2 font-semibold text-xs text-gray-600 border-b border-gray-300 pb-1 mb-2">
+                      <div>Team</div>
+                      <div className="text-center">Moneyline</div>
+                      <div className="text-center">Spread</div>
+                      <div className="text-center">Total</div>
+                      <div></div> {/* Actions */}
+                    </div>
+
+                    {teams.map((teamName) => {
+                      const moneylineOutcome = moneylineMarket?.outcomes?.find((o: any) => o.name === teamName);
+                      const spreadOutcome = spreadMarket?.outcomes?.find((o: any) => o.name === teamName);
+                      const totalOutcome = totalMarket?.outcomes?.find((o: any) => o.name === teamName);
+
+                      return (
+                        <div
+                          key={teamName}
+                          className="grid grid-cols-5 gap-2 items-center text-sm border-t border-gray-200 py-2"
+                        >
+                          {/* Team Name + Record */}
+                          <div>
+                            <div className="font-medium">{teamName}</div>
+                            <div className="text-xs text-gray-500">
+                              ({teamRecords[teamName]?.wins ?? "-"}-{teamRecords[teamName]?.losses ?? "-"})
+                            </div>
+                          </div>
+
+                          {/* Moneyline */}
+                          <div className="text-center">
+                            {moneylineOutcome ? (
+                              <button
+                                onClick={() => addToParlay(game.id, moneylineOutcome, "moneyline")}
+                                className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
+                              >
+                                {convertDecimalToAmerican(Number(moneylineOutcome.price))}
+                              </button>
+                            ) : (
+                              "-"
+                            )}
+                          </div>
+
+                          {/* Spread */}
+                          <div className="text-center">
+                            {spreadOutcome ? (
+                              <button
+                                onClick={() => addToParlay(game.id, spreadOutcome, "spread")}
+                                className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs whitespace-nowrap"
+                              >
+                                {spreadOutcome.point > 0 ? `+${spreadOutcome.point}` : spreadOutcome.point} {convertDecimalToAmerican(Number(spreadOutcome.price))}
+                              </button>
+                            ) : (
+                              "-"
+                            )}
+                          </div>
+
+                          {/* Total */}
+                          <div className="text-center">
+                            {totalOutcome ? (
+                              <button
+                                onClick={() => addToParlay(game.id, totalOutcome, "total")}
+                                className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
+                              >
+                                {totalOutcome.name.includes("Over") ? "O" : "U"} {totalOutcome.point} ({convertDecimalToAmerican(Number(totalOutcome.price))})
+                              </button>
+                            ) : (
+                              "-"
+                            )}
+                          </div>
+
+                          <div></div>
+                        </div>
+                      );
+                    })}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
+
+
 
         {/* Parlay Builder Section */}
         <div className="w-full max-w-3xl mt-10">
           <h2 className="text-lg font-bold mb-4">Your Parlay</h2>
           {parlay.length === 0 ? (
-            <p className="text-sm text-gray-500">No picks added yet.</p>
+            <p className="text-sm text-gray-500">No picks added yet</p>
           ) : (
             <>
               <ul className="space-y-2 mb-4">
                 {parlay.map((pick, index) => (
                   <li key={index} className="flex justify-between items-center border border-gray-300 px-4 py-2 rounded-md">
-                    <span>{pick.name}</span>
+                    <span>
+                      {pick.marketType === "moneyline" && `${pick.name} (Moneyline)`}
+                      {pick.marketType === "spread" && `${pick.name} ${pick.point > 0 ? `+${pick.point}` : pick.point} (Spread)`}
+                      {pick.marketType === "total" && `${pick.name} ${pick.point} (Total)`}
+                    </span>
                     <button
                       className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
                       onClick={() => removeFromParlay(index)}
