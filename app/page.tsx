@@ -18,7 +18,7 @@ const leagueMap: { [key: string]: string } = {
 const sportsbooks = ["Caesars Sportsbook", "Tropicana Sportsbook", "Bet Parx"];
 
 export default function HomePage() {
-  const [selectedLeague, setSelectedLeague] = useState("NBA");
+  const [selectedLeague, setSelectedLeague] = useState("MLB");
   const [odds, setOdds] = useState<any[]>([]);
   const [parlay, setParlay] = useState<any[]>([]);
   const [oddsView, setOddsView] = useState("American");
@@ -248,9 +248,9 @@ export default function HomePage() {
 
         {/* Upcoming Games Section */}
         <div className="w-full max-w-3xl mt-10">
-        <h2 className="text-lg font-bold mb-1">Upcoming {selectedLeague} Games</h2>
+          <h2 className="text-lg font-bold mb-1">Upcoming {selectedLeague} Games</h2>
           <p className="text-xs text-gray-500 mb-4">
-            Displayed odds are average market odds and may not reflect the most current odds
+            Displayed singles odds are averaged and may not reflect the most current odds
           </p>
           {!Array.isArray(odds) || odds.length === 0 ? (
             <p className="text-sm text-gray-500">Check back later for {selectedLeague} matchups.</p>
@@ -293,9 +293,10 @@ export default function HomePage() {
                     </div>
 
                     {teams.map((teamName) => {
+                      const isHomeTeam = teamName === game.home_team;
+
                       const moneylineOutcome = moneylineMarket?.outcomes?.find((o: any) => o.name === teamName);
                       const spreadOutcome = spreadMarket?.outcomes?.find((o: any) => o.name === teamName);
-                      const totalOutcome = totalMarket?.outcomes?.find((o: any) => o.name === teamName);
 
                       return (
                         <div
@@ -340,16 +341,23 @@ export default function HomePage() {
 
                           {/* Total */}
                           <div className="text-center">
-                            {totalOutcome ? (
-                              <button
-                                onClick={() => addToParlay(game.id, totalOutcome, "total")}
-                                className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
-                              >
-                                {totalOutcome.name.includes("Over") ? "O" : "U"} {totalOutcome.point} ({convertDecimalToAmerican(Number(totalOutcome.price))})
-                              </button>
-                            ) : (
-                              "-"
-                            )}
+                            {totalMarket?.outcomes
+                              ?.filter((o: any) =>
+                                isHomeTeam ? o.name === "Over" : o.name === "Under"
+                              )
+                              ?.map((outcome: any) => (
+                                <button
+                                  key={outcome.name}
+                                  onClick={() => addToParlay(
+                                    game.id,
+                                    { ...outcome, matchup: `${game.home_team} vs ${game.away_team}` },
+                                    "total"
+                                  )}
+                                  className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs whitespace-nowrap"
+                                >
+                                  {outcome.name === "Over" ? "O" : "U"} {outcome.point} {convertDecimalToAmerican(Number(outcome.price))}
+                                </button>
+                              ))}
                           </div>
 
                           <div></div>
@@ -362,6 +370,7 @@ export default function HomePage() {
             </ul>
           )}
         </div>
+
 
 
 
@@ -378,7 +387,7 @@ export default function HomePage() {
                     <span>
                       {pick.marketType === "moneyline" && `${pick.name} (Moneyline)`}
                       {pick.marketType === "spread" && `${pick.name} ${pick.point > 0 ? `+${pick.point}` : pick.point} (Spread)`}
-                      {pick.marketType === "total" && `${pick.name} ${pick.point} (Total)`}
+                      {pick.marketType === "total" && `${pick.matchup} ${pick.name} ${pick.point} (Total)`}
                     </span>
                     <button
                       className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
