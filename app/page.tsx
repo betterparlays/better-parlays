@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
-const leagues = ["NFL", "MLB", "NBA", "NHL", "NCAAF", "NCAAB", "NCAAWB"];
+const leagues = ["League", "NFL", "MLB", "NBA", "NHL", "NCAAF", "NCAAB", "NCAAWB", "EPL", "La Liga", "Bundesliga", "Serie A", "Ligue 1", "Champions League", "MLS"];
 const leagueMap: { [key: string]: string } = {
+  League: "baseball_mlb",
   NFL: "americanfootball_nfl",
   MLB: "baseball_mlb",
   NBA: "basketball_nba",
@@ -13,12 +14,19 @@ const leagueMap: { [key: string]: string } = {
   NCAAF: "americanfootball_ncaaf",
   NCAAB: "basketball_ncaab",
   NCAAWB: "basketball_ncaaw",
+  EPL: "soccer_epl",
+  "La Liga": "soccer_spain_la_liga",
+  Bundesliga: "soccer_germany_bundesliga",
+  "Serie A": "soccer_italy_serie_a",
+  "Ligue 1": "soccer_france_ligue_one",
+  "Champions League": "soccer_uefa_champs_league",
+  MLS: "soccer_usa_mls",
 };
 
 const sportsbooks = ["Caesars Sportsbook", "Tropicana Sportsbook", "Bet Parx"];
 
 export default function HomePage() {
-  const [selectedLeague, setSelectedLeague] = useState("MLB");
+  const [selectedLeague, setSelectedLeague] = useState("League");
   const [odds, setOdds] = useState<any[]>([]);
   const [parlay, setParlay] = useState<any[]>([]);
   const [oddsView, setOddsView] = useState("American");
@@ -149,6 +157,23 @@ export default function HomePage() {
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const getAveragePrice = (marketKey: string, teamName: string, bookmakers: any[]) => {
+    const prices: number[] = [];
+  
+    bookmakers.forEach((book: any) => {
+      const market = book.markets?.find((m: any) => m.key === marketKey);
+      const outcome = market?.outcomes?.find((o: any) => o.name === teamName);
+      if (outcome && outcome.price) {
+        prices.push(Number(outcome.price));
+      }
+    });
+  
+    if (prices.length === 0) return null;
+  
+    const average = prices.reduce((acc, val) => acc + val, 0) / prices.length;
+    return average;
+  };
+
   return (
     <div className="min-h-screen bg-white text-black font-sans">
       {/* Navbar */}
@@ -234,7 +259,7 @@ export default function HomePage() {
 
             <input
               type="text"
-              placeholder="Search"
+              placeholder="Select a League to search for odds in that League or to view Upcoming Games"
               className="flex-grow px-4 py-3 bg-white text-black text-sm focus:outline-none rounded-r-full"
             />
 
@@ -248,7 +273,7 @@ export default function HomePage() {
 
         {/* Upcoming Games Section */}
         <div className="w-full max-w-3xl mt-10">
-          <h2 className="text-lg font-bold mb-1">Upcoming {selectedLeague} Games</h2>
+          <h2 className="text-lg font-bold mb-1">Upcoming Games</h2>
           <p className="text-xs text-gray-500 mb-4">
             Displayed singles odds are averaged and may not reflect the most current odds
           </p>
@@ -257,10 +282,6 @@ export default function HomePage() {
           ) : (
             <ul className="space-y-4">
               {odds.slice(0, 3).map((game: any) => {
-                const moneylineMarket = game.bookmakers?.[0]?.markets?.find((m: any) => m.key === "h2h");
-                const spreadMarket = game.bookmakers?.[0]?.markets?.find((m: any) => m.key === "spreads");
-                const totalMarket = game.bookmakers?.[0]?.markets?.find((m: any) => m.key === "totals");
-
                 const teams = [game.home_team, game.away_team];
 
                 return (
@@ -295,8 +316,15 @@ export default function HomePage() {
                     {teams.map((teamName) => {
                       const isHomeTeam = teamName === game.home_team;
 
-                      const moneylineOutcome = moneylineMarket?.outcomes?.find((o: any) => o.name === teamName);
-                      const spreadOutcome = spreadMarket?.outcomes?.find((o: any) => o.name === teamName);
+                      const avgML = getAveragePrice("h2h", teamName, game.bookmakers || []);
+                      const bestML = game.bookmakers?.[0]?.markets?.find((m: any) => m.key === "h2h")
+                        ?.outcomes?.find((o: any) => o.name === teamName);
+
+                      const avgSpread = getAveragePrice("spreads", teamName, game.bookmakers || []);
+                      const bestSpread = game.bookmakers?.[0]?.markets?.find((m: any) => m.key === "spreads")
+                        ?.outcomes?.find((o: any) => o.name === teamName);
+
+                      const totalMarket = game.bookmakers?.[0]?.markets?.find((m: any) => m.key === "totals");
 
                       return (
                         <div
@@ -313,12 +341,12 @@ export default function HomePage() {
 
                           {/* Moneyline */}
                           <div className="text-center">
-                            {moneylineOutcome ? (
+                            {avgML && bestML ? (
                               <button
-                                onClick={() => addToParlay(game.id, moneylineOutcome, "moneyline")}
+                                onClick={() => addToParlay(game.id, bestML, "moneyline")}
                                 className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
                               >
-                                {convertDecimalToAmerican(Number(moneylineOutcome.price))}
+                                {convertDecimalToAmerican(avgML)}
                               </button>
                             ) : (
                               "-"
@@ -327,12 +355,13 @@ export default function HomePage() {
 
                           {/* Spread */}
                           <div className="text-center">
-                            {spreadOutcome ? (
+                            {avgSpread && bestSpread ? (
                               <button
-                                onClick={() => addToParlay(game.id, spreadOutcome, "spread")}
+                                onClick={() => addToParlay(game.id, bestSpread, "spread")}
                                 className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs whitespace-nowrap"
                               >
-                                {spreadOutcome.point > 0 ? `+${spreadOutcome.point}` : spreadOutcome.point} {convertDecimalToAmerican(Number(spreadOutcome.price))}
+                                {bestSpread.point > 0 ? `+${bestSpread.point}` : bestSpread.point}{" "}
+                                {convertDecimalToAmerican(avgSpread)}
                               </button>
                             ) : (
                               "-"
@@ -341,24 +370,37 @@ export default function HomePage() {
 
                           {/* Total */}
                           <div className="text-center">
-                            {totalMarket?.outcomes
-                              ?.filter((o: any) =>
-                                isHomeTeam ? o.name === "Over" : o.name === "Under"
-                              )
-                              ?.map((outcome: any) => (
-                                <button
-                                  key={outcome.name}
-                                  onClick={() => addToParlay(
-                                    game.id,
-                                    { ...outcome, matchup: `${game.home_team} vs ${game.away_team}` },
-                                    "total"
-                                  )}
-                                  className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs whitespace-nowrap"
-                                >
-                                  {outcome.name === "Over" ? "O" : "U"} {outcome.point} {convertDecimalToAmerican(Number(outcome.price))}
-                                </button>
-                              ))}
+                            {totalMarket?.outcomes?.some((o: any) =>
+                              isHomeTeam ? o.name === "Over" : o.name === "Under"
+                            ) ? (
+                              totalMarket.outcomes
+                                .filter((o: any) =>
+                                  isHomeTeam ? o.name === "Over" : o.name === "Under"
+                                )
+                                .map((outcome: any) => {
+                                  const avgTotal = getAveragePrice("totals", outcome.name, game.bookmakers || []);
+                                  return (
+                                    <button
+                                      key={outcome.name}
+                                      onClick={() =>
+                                        addToParlay(
+                                          game.id,
+                                          { ...outcome, matchup: `${game.home_team} vs ${game.away_team}` },
+                                          "total"
+                                        )
+                                      }
+                                      className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs whitespace-nowrap"
+                                    >
+                                      {outcome.name === "Over" ? "O" : "U"} {outcome.point}{" "}
+                                      {avgTotal ? convertDecimalToAmerican(avgTotal) : "-"}
+                                    </button>
+                                  );
+                                })
+                            ) : (
+                              <span>-</span>
+                            )}
                           </div>
+
 
                           <div></div>
                         </div>
@@ -370,6 +412,7 @@ export default function HomePage() {
             </ul>
           )}
         </div>
+
 
 
 
@@ -438,7 +481,7 @@ export default function HomePage() {
           <aside className="flex-1 flex flex-col items-center md:items-start text-center md:text-left">
             <h2 className="text-sm font-bold text-gray-500 mb-2">Disclaimer</h2>
             <p className="text-xs text-gray-600">
-              Companies featured on this website may be our partners that compensate us if you sign up through our links. Must be 21+ and physically present in New Jersey to bet. If you or someone you know has a gambling problem and wants help, call <strong>1-800-GAMBLER</strong>. Please bet responsibly.
+              Companies featured on this website may be our partners that compensate us if you sign up through our links. Must be 21+ and physically present in a legal betting state to bet. If you or someone you know has a gambling problem and wants help, call <strong>1-800-GAMBLER</strong>. Please bet responsibly.
             </p>
           </aside>
 
@@ -449,6 +492,7 @@ export default function HomePage() {
             <Link href="/our-picks" className="hover:underline text-gray-700">Our Picks</Link>
             <Link href="/sign-up" className="hover:underline text-gray-700">Sign Up</Link>
             <Link href="/disclaimer" className="hover:underline text-gray-700">Disclaimer</Link>
+            <Link href="/terms-and-privacy-policy" className="hover:underline text-gray-700">Terms and Privacy Policy</Link>
           </nav>
         </div>
       </footer>

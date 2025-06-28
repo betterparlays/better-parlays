@@ -1,83 +1,107 @@
-import Link from "next/link";
+"use client";
 
-// pages/promotions.tsx
+import Link from "next/link";
+import { useState } from "react";
+import { Menu, X } from "lucide-react";
+
 export default function Promotions() {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-white text-black font-sans">
       {/* Navbar */}
-      <nav className="flex justify-between items-center px-4 sm:px-6 md:px-8 py-6 border-b border-black">
-            <div className="w-40 h-16 sm:w-48 sm:h-20">
+      <nav className="flex flex-col px-4 sm:px-6 md:px-8 py-6 border-b border-black">
+        <div className="flex justify-between items-center">
+          <div className="w-40 h-16 sm:w-48 sm:h-20">
             <Link href="/">
-                <svg viewBox="-10 0 340 100" xmlns="http://www.w3.org/2000/svg" className="w-full h-full cursor-pointer">
+              <svg viewBox="-10 0 340 100" xmlns="http://www.w3.org/2000/svg" className="w-full h-full cursor-pointer">
                 <text x="16" y="42" fontSize="50" fontWeight="1000" fill="#d1d5db" transform="skewX(-25)">
-                    BETTER
+                  BETTER
                 </text>
                 <text x="31" y="94" fontSize="50" fontWeight="1000" fill="#d1d5db" transform="skewX(-25)">
-                    PARLAYS
+                  PARLAYS
                 </text>
-                </svg>
+              </svg>
             </Link>
-            </div>
-            <ul className="flex flex-nowrap justify-end gap-x-4 sm:gap-x-6 text-xs sm:text-sm font-medium text-black">
-            <li className="whitespace-nowrap">
-                <Link href="/promotions" className="hover:underline">Promotions</Link>
+          </div>
+
+          {/* Desktop Links */}
+          <ul className="hidden md:flex flex-nowrap justify-end gap-x-6 text-sm font-medium text-black">
+            <li>
+              <Link href="/promotions" className="hover:underline">Promotions</Link>
             </li>
-            <li className="whitespace-nowrap">
-                <Link href="/our-picks" className="hover:underline">Our Picks</Link>
+            <li>
+              <Link href="/our-picks" className="hover:underline">Our Picks</Link>
             </li>
-            <li className="whitespace-nowrap">
-                <Link href="/sign-up" className="hover:underline">Sign Up</Link>
+            <li>
+              <Link href="/sign-up" className="hover:underline">Sign Up</Link>
             </li>
-            </ul>
-        </nav>
-      <div className="p-8">
+          </ul>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="md:hidden text-black focus:outline-none"
+          >
+            {isMobileMenuOpen ? (
+              <X size={24} strokeWidth={1.5} />
+            ) : (
+              <Menu size={24} strokeWidth={1.5} />
+            )}
+          </button>
+        </div>
+
+        {/* Mobile Dropdown Menu */}
+        <div
+          className={`overflow-hidden transition-all duration-300 ease-in-out ${
+            isMobileMenuOpen ? "max-h-40 opacity-100 mt-4" : "max-h-0 opacity-0"
+          } md:hidden`}
+        >
+          <ul className="flex flex-col items-center gap-y-4 text-sm font-medium text-black">
+            <li>
+              <Link href="/promotions" onClick={() => setIsMobileMenuOpen(false)} className="hover:underline">
+                Promotions
+              </Link>
+            </li>
+            <li>
+              <Link href="/our-picks" onClick={() => setIsMobileMenuOpen(false)} className="hover:underline">
+                Our Picks
+              </Link>
+            </li>
+            <li>
+              <Link href="/sign-up" onClick={() => setIsMobileMenuOpen(false)} className="hover:underline">
+                Sign Up
+              </Link>
+            </li>
+          </ul>
+        </div>
+      </nav>
+
+      {/* Placeholder Content */}
+      <div className="p-8 text-center">
         <h1 className="text-2xl font-bold mb-4">Promotions</h1>
-        <ul className="space-y-4">
-          <li className="border border-black p-4 rounded-md shadow-sm flex justify-between items-center">
-            <div>
-              <img src="/caesers.avif" alt="Caesars Logo" className="h-10 mb-2" />
-              <h2 className="text-xl font-semibold">Caesars Sportsbook</h2>
-              <p className="mt-1">Bet $50 and get a $250 bonus bet. Terms and conditions apply. New users only.</p>
-            </div>
-            <a href="#" className="ml-4 px-3 py-1 bg-black text-white text-sm rounded hover:bg-gray-800">Visit Caesars Sportsbook</a>
-          </li>
-          <li className="border border-black p-4 rounded-md shadow-sm flex justify-between items-center">
-            <div>
-              <img src="/Tropicana_Entertainment_logo.png" alt="Tropicana Logo" className="h-14 mb-2" />
-              <h2 className="text-xl font-semibold">Tropicana Sportsbook</h2>
-              <p className="mt-1">Deposit and bet $10 to receive $100 in bonus bets. Offer valid this month only.</p>
-            </div>
-            <a href="#" className="ml-4 px-3 py-1 bg-black text-white text-sm rounded hover:bg-gray-800">Visit Tropicana Sportsbook</a>
-          </li>
-          <li className="border border-black p-4 rounded-md shadow-sm flex justify-between items-center">
-            <div>
-              <img src="/betparx.png" alt="Bet Parx Logo" className="h-10 mb-2" />
-              <h2 className="text-xl font-semibold">Bet Parx</h2>
-              <p className="mt-1">Get a 100% deposit match up to $250 on your first bet. Use promo code PARX100.</p>
-            </div>
-            <a href="#" className="ml-4 px-3 py-1 bg-black text-white text-sm rounded hover:bg-gray-800">Visit Bet Parx Sportsbook</a>
-          </li>
-        </ul>
+        <p className="text-md text-gray-700 max-w-xl mx-auto">
+          Promotional sportsbook offers will be listed here soon. We’re currently working with partners to bring you the best available bonuses and signup deals. Stay tuned!
+        </p>
       </div>
 
+      {/* Footer */}
       <footer className="w-full border-t border-black mt-10 py-10 px-4 bg-white flex justify-center">
         <div className="w-full max-w-screen-lg flex flex-col md:flex-row gap-8">
-
-          {/* Disclaimer Section */}
           <aside className="flex-1 flex flex-col items-center md:items-start text-center md:text-left">
             <h2 className="text-sm font-bold text-gray-500 mb-2">Disclaimer</h2>
             <p className="text-xs text-gray-600">
-              Companies featured on this website may be our partners that compensate us if you sign up through our links. Must be 21+ and physically present in New Jersey to bet. If you or someone you know has a gambling problem and wants help, call <strong>1-800-GAMBLER</strong>. Please bet responsibly.
+            Companies featured on this website may be our partners that compensate us if you sign up through our links. Must be 21+ and physically present in a legal betting state to bet. If you or someone you know has a gambling problem and wants help, call <strong>1-800-GAMBLER</strong>. Please bet responsibly.
             </p>
           </aside>
 
-          {/* Links Section */}
           <nav className="flex-1 flex flex-col items-center md:items-start text-xs gap-1">
             <h2 className="text-sm font-bold text-gray-500 mb-2">Quick Links</h2>
             <Link href="/promotions" className="hover:underline text-gray-700">Promotions</Link>
             <Link href="/our-picks" className="hover:underline text-gray-700">Our Picks</Link>
             <Link href="/sign-up" className="hover:underline text-gray-700">Sign Up</Link>
             <Link href="/disclaimer" className="hover:underline text-gray-700">Disclaimer</Link>
+            <Link href="/terms-and-privacy-policy" className="hover:underline text-gray-700">Terms and Privacy Policy</Link>
           </nav>
         </div>
       </footer>

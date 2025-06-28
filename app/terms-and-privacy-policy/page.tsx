@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
 import Link from "next/link";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 
-export default function OurPicks() {
+export default function DisclaimerPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
@@ -27,15 +27,9 @@ export default function OurPicks() {
 
           {/* Desktop Links */}
           <ul className="hidden md:flex flex-nowrap justify-end gap-x-6 text-sm font-medium text-black">
-            <li>
-              <Link href="/promotions" className="hover:underline">Promotions</Link>
-            </li>
-            <li>
-              <Link href="/our-picks" className="hover:underline">Our Picks</Link>
-            </li>
-            <li>
-              <Link href="/sign-up" className="hover:underline">Sign Up</Link>
-            </li>
+            <li><Link href="/promotions" className="hover:underline">Promotions</Link></li>
+            <li><Link href="/our-picks" className="hover:underline">Our Picks</Link></li>
+            <li><Link href="/sign-up" className="hover:underline">Sign Up</Link></li>
           </ul>
 
           {/* Mobile Menu Button */}
@@ -73,67 +67,59 @@ export default function OurPicks() {
         </div>
       </nav>
 
-      {/* Picks Content */}
-      <div className="p-8 space-y-8">
-        <h1 className="text-2xl font-bold">Our Picks</h1>
-        <p className="text-sm text-gray-700 mb-6">We're absolutely loving these parlays that are featured on the <strong>Sportsbook Parlay Place</strong></p>
-
-        <div className="flex flex-col md:flex-row gap-6">
-          {/* First Parlay Box */}
-          <section className="border border-black p-4 rounded-md shadow-sm w-full md:w-1/2">
-            <h2 className="text-xl font-semibold mb-4">Highlighted 6-Leg Parlay</h2>
-            <ul className="list-disc list-inside text-sm space-y-2">
-              <p><strong>Ronald Acuna Jr.</strong> to record 2+ total bases</p>
-              <p><strong>Austin Riley</strong> to record 2+ total bases</p>
-              <p><strong>Trea Turner</strong> to record 2+ total bases</p>
-              <p><strong>Kyle Schwarber</strong> to record 2+ total bases</p>
-              <p><strong>Nick Castellanos</strong> to record 2+ total bases</p>
-              <p><strong>Matt Olson</strong> to record 2+ total bases</p>
-            </ul>
-            <p className="mt-4 text-sm font-semibold">
-              Total Odds: <span className="text-green-600">+3789</span>
+      {/* Terms and Privacy Policy Content */}
+      <main className="w-full max-w-screen-md mx-auto px-4 py-12">
+        <h1 className="text-2xl font-bold mb-6 text-center sm:text-left">Terms and Privacy Policy</h1>
+        <div className="text-sm text-gray-700 leading-relaxed space-y-6">
+          <section>
+            <h2 className="font-semibold text-lg mb-2">Terms of Use</h2>
+            <p>
+              By accessing and using the Better Parlays website, you agree to comply with these terms of use.
+              Our platform is designed for entertainment and informational purposes only and is not a sportsbook.
+              We do not facilitate any betting transactions directly.
             </p>
-            <p className="text-sm text-gray-600">A $10 wager would return $378.96</p>
-            <div className="mt-6">
-              <a
-                href="https://www.example.com"
-                target="_blank"
-                rel="noopener noreferrer nofollow sponsored"
-                className="inline-block px-4 py-2 text-sm bg-black text-white rounded hover:bg-gray-800"
-              >
-                Click here to place this bet on Sportsbook
-              </a>
-            </div>
+            <p>
+              You must be 21 years of age or older to use this website. If you choose to interact with any of
+              our affiliate sportsbooks, you are responsible for ensuring that you meet all eligibility and
+              regulatory requirements in your jurisdiction.
+            </p>
           </section>
 
-          {/* Second Parlay Box */}
-          <section className="border border-black p-4 rounded-md shadow-sm w-full md:w-1/2">
-            <h2 className="text-xl font-semibold mb-4">Featured RBI & Hit Parlay</h2>
-            <ul className="list-disc list-inside text-sm space-y-2">
-              <p><strong>Christian Moore</strong> to record an RBI</p>
-              <p><strong>Jo Adell</strong> to record a hit</p>
-              <p><strong>James Wood</strong> to record an RBI</p>
-              <p><strong>C.J. Abrams</strong> to record a hit</p>
-            </ul>
-            <p className="mt-4 text-sm font-semibold">
-              Total Odds: <span className="text-green-600">+1357</span>
+          <section>
+            <h2 className="font-semibold text-lg mb-2">Privacy Policy</h2>
+            <p>
+              We value your privacy and are committed to protecting your personal information. We may collect
+              information you provide voluntarily (such as when signing up) and anonymized data for analytics
+              purposes.
             </p>
-            <p className="text-sm text-gray-600">A $10 wager would return $135.77</p>
-            <div className="mt-6">
-              <a
-                href="https://www.example.com"
-                target="_blank"
-                rel="noopener noreferrer nofollow sponsored"
-                className="inline-block px-4 py-2 text-sm bg-black text-white rounded hover:bg-gray-800"
-              >
-                Click here to place this bet on Sportsbook
-              </a>
-            </div>
+            <p>
+              We do not sell or share your personal data with third parties except in cases where we are legally
+              obligated or where it is necessary to operate the site (e.g., analytics or affiliate tracking).
+            </p>
+            <p>
+              By using our site, you consent to the use of cookies and similar technologies to enhance your
+              experience. You can manage cookie preferences in your browser settings.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="font-semibold text-lg mb-2">Changes to These Policies</h2>
+            <p>
+              We reserve the right to update or modify these terms and our privacy policy at any time. Continued
+              use of the site after changes are posted constitutes your acceptance of those changes.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="font-semibold text-lg mb-2">Contact</h2>
+            <p>
+              If you have any questions about these policies, please contact us at
+              <a href="mailto:betterparlays@gmail.com" className="text-blue-600 underline ml-1">betterparlays@gmail.com</a>.
+            </p>
           </section>
         </div>
+      </main>
 
-
-      </div>
 
       {/* Footer */}
       <footer className="w-full border-t border-black mt-10 py-10 px-4 bg-white flex justify-center">
@@ -141,7 +127,7 @@ export default function OurPicks() {
           <aside className="flex-1 flex flex-col items-center md:items-start text-center md:text-left">
             <h2 className="text-sm font-bold text-gray-500 mb-2">Disclaimer</h2>
             <p className="text-xs text-gray-600">
-            Companies featured on this website may be our partners that compensate us if you sign up through our links. Must be 21+ and physically present in a legal betting state to bet. If you or someone you know has a gambling problem and wants help, call <strong>1-800-GAMBLER</strong>. Please bet responsibly.
+              Companies featured on this website may be our partners that compensate us if you sign up through our links. Must be 21+ and physically present in a legal betting state to bet. If you or someone you know has a gambling problem and wants help, call <strong>1-800-GAMBLER</strong>. Please bet responsibly.
             </p>
           </aside>
           <nav className="flex-1 flex flex-col items-center md:items-start text-xs gap-1">
