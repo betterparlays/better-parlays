@@ -76,7 +76,8 @@ export default function OurPicks() {
       {/* Picks Content */}
       <div className="p-8 space-y-8">
         <h1 className="text-2xl font-bold">Our Picks</h1>
-        <p className="text-sm text-gray-700 mb-6">We're absolutely loving these parlays that are featured on the <strong>Sportsbook Parlay Place</strong></p>
+        <p className="text-sm text-gray-700 mb-6">We&apos;re absolutely loving these parlays that are featured on the <strong>Sportsbook Parlay Place</strong></p>
+
 
         <div className="flex flex-col md:flex-row gap-6">
           {/* First Parlay Box */}
