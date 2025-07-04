@@ -1,11 +1,11 @@
 import axios from 'axios';
 import { fuzzyFindBestTeam } from './fuzzyMatch';
-import { leagueMap } from './leagues';
+import { leagueMetaMap } from './leagues';
 
 const API_KEY = process.env.API_SPORTS_KEY!;
 
 export const fetchTeamRecord = async (oddsApiTeamName: string, leagueKey: string) => {
-  const leagueMeta = leagueMap[leagueKey];
+  const leagueMeta = leagueMetaMap[leagueKey];
   if (!leagueMeta) throw new Error(`Unsupported league: ${leagueKey}`);
 
   const { sport, leagueId, season } = leagueMeta;

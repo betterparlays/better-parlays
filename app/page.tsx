@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
-const leagues = ["League", "NFL", "MLB", "NBA", "NHL", "NCAAF", "NCAAB", "NCAAWB", "EPL", "La Liga", "Bundesliga", "Serie A", "Ligue 1", "Champions League", "MLS"];
-const leagueMap: { [key: string]: string } = {
-  League: "baseball_mlb",
+
+const leagues = ["Select League", "NFL", "MLB", "NBA", "NHL", "NCAAF", "NCAAB", "NCAAWB", "EPL", "La Liga", "Bundesliga", "Serie A", "Ligue 1", "Champions League", "MLS"];
+const mainLeagueMap: { [key: string]: string } = {
+  "Select League": "baseball_mlb",
   NFL: "americanfootball_nfl",
   MLB: "baseball_mlb",
   NBA: "basketball_nba",
@@ -25,17 +26,61 @@ const leagueMap: { [key: string]: string } = {
 
 const sportsbooks = ["Caesars Sportsbook", "Tropicana Sportsbook", "Bet Parx"];
 
+
+
 export default function HomePage() {
-  const [selectedLeague, setSelectedLeague] = useState("League");
+  const [selectedLeague, setSelectedLeague] = useState("Select League");
+  const [selectWidth, setSelectWidth] = useState<number>(0);
+  const textRef = useRef<HTMLSpanElement>(null);
   const [odds, setOdds] = useState<any[]>([]);
   const [parlay, setParlay] = useState<any[]>([]);
   const [oddsView, setOddsView] = useState("American");
   const [randomBook, setRandomBook] = useState("");
   const [teamRecords, setTeamRecords] = useState<{ [key: string]: { wins: number; losses: number } }>({});
 
+  const ResponsiveTeamName = ({ name }: { name: string }) => {
+    return (
+      <div
+        className="font-medium text-[clamp(0.75rem,3vw,1rem)] leading-snug break-words relative z-10"
+        style={{
+          position: "relative",             // Needed for z-index to work
+          zIndex: 10,                       // Ensures it's layered on top
+          wordBreak: "keep-all",
+          overflowWrap: "normal",
+          hyphens: "none",
+          maxHeight: "calc(1.25em * 3)",
+          display: "-webkit-box",
+          WebkitBoxOrient: "vertical",
+          WebkitLineClamp: 3,
+          overflow: "visible",             // Allows spillover
+        }}
+      >
+        {name}
+      </div>
+    );
+  };
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 
   useEffect(() => {
-    fetch(`/api/odds?sport=${leagueMap[selectedLeague]}`)
+    if (textRef.current) {
+      const width = textRef.current.offsetWidth + 32; // add padding buffer
+      setSelectWidth(width);
+    }
+  }, [selectedLeague]);
+
+  useEffect(() => {
+    fetch(`/api/odds?sport=${mainLeagueMap[selectedLeague]}`)
       .then((res) => res.json())
       .then((data) => {
         console.log("📦 Raw odds data:", data); // 👈 Log here
@@ -48,7 +93,7 @@ export default function HomePage() {
   }, [selectedLeague]);  
   
   useEffect(() => {
-    fetch(`/api/odds?sport=${leagueMap[selectedLeague]}`)
+    fetch(`/api/odds?sport=${mainLeagueMap[selectedLeague]}`)
       .then((res) => res.json())
       .then(async (data) => {
         const games = Array.isArray(data) ? data.slice(0, 3) : []; // Limit to first 3 games
@@ -245,25 +290,46 @@ export default function HomePage() {
       {/* Main Content */}
       <main className="flex flex-col items-center justify-start pt-10 px-6">
         {/* Search + League Bar */}
-        <div className="w-full max-w-3xl">
-          <div className="relative flex items-center border border-black rounded-full shadow-md bg-white">
-            <select
-              className="pl-4 pr-2 py-3 bg-white text-black text-sm rounded-l-full focus:outline-none border-r border-black"
-              value={selectedLeague}
-              onChange={(e) => setSelectedLeague(e.target.value)}
+        <div className="w-full max-w-3xl mx-auto">
+          <div className="relative flex items-center border border-black rounded-full shadow-md bg-white overflow-hidden w-full">
+            {/* Hidden span for measuring select width */}
+            <span
+              ref={textRef}
+              className="absolute invisible whitespace-nowrap text-sm font-normal pl-3 py-3"
             >
-              {leagues.map((league) => (
-                <option key={league} value={league}>{league}</option>
-              ))}
-            </select>
+              {selectedLeague}
+            </span>
+
+            {/* Custom select wrapper with dropdown icon */}
+            <div className="relative flex-shrink-0">
+              <select
+                className="appearance-none pl-3 pr-6 py-3 bg-white text-black text-sm rounded-l-full focus:outline-none border-r border-black"
+                value={selectedLeague}
+                onChange={(e) => setSelectedLeague(e.target.value)}
+                style={{ width: selectWidth }}
+              >
+                {leagues.map((league) => (
+                  <option key={league} value={league}>
+                    {league}
+                  </option>
+                ))}
+              </select>
+
+              {/* Custom dropdown arrow */}
+              <div className="pointer-events-none absolute right-2 top-1/2 transform -translate-y-1/2 text-black">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
 
             <input
               type="text"
-              placeholder="Select a League to search for odds in that League or to view Upcoming Games"
-              className="flex-grow px-4 py-3 bg-white text-black text-sm focus:outline-none rounded-r-full"
+              placeholder="Search"
+              className="min-w-0 flex-grow px-4 py-3 bg-white text-black text-sm focus:outline-none rounded-r-full"
             />
 
-            <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+            <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex-shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M16.65 10.65A6 6 0 1110.65 4a6 6 0 016 6.65z" />
               </svg>
@@ -271,9 +337,16 @@ export default function HomePage() {
           </div>
         </div>
 
+
+
+
+
+
         {/* Upcoming Games Section */}
         <div className="w-full max-w-3xl mt-10">
-          <h2 className="text-lg font-bold mb-1">Upcoming Games</h2>
+          <h2 className="text-lg font-bold mb-1">
+            Upcoming {selectedLeague === "Select League" ? "" : `${selectedLeague} `}Games
+          </h2>
           <p className="text-xs text-gray-500 mb-4">
             Displayed singles odds are averaged and may not reflect the most current odds
           </p>
@@ -305,12 +378,11 @@ export default function HomePage() {
                     </div>
 
                     {/* Team Odds Row */}
-                    <div className="grid grid-cols-5 gap-2 font-semibold text-xs text-gray-600 border-b border-gray-300 pb-1 mb-2">
+                    <div className="grid grid-cols-4 gap-5 font-semibold text-xs text-gray-600 border-b border-gray-300 pb-1 mb-2">
                       <div>Team</div>
                       <div className="text-center">Moneyline</div>
                       <div className="text-center">Spread</div>
                       <div className="text-center">Total</div>
-                      <div></div> {/* Actions */}
                     </div>
 
                     {teams.map((teamName) => {
@@ -329,11 +401,11 @@ export default function HomePage() {
                       return (
                         <div
                           key={teamName}
-                          className="grid grid-cols-5 gap-2 items-center text-sm border-t border-gray-200 py-2"
+                          className="grid grid-cols-4 gap-5 items-center text-sm border-t border-gray-200 py-2"
                         >
                           {/* Team Name + Record */}
                           <div>
-                            <div className="font-medium">{teamName}</div>
+                            <ResponsiveTeamName name={teamName} />
                             <div className="text-xs text-gray-500">
                               ({teamRecords[teamName]?.wins ?? "-"}-{teamRecords[teamName]?.losses ?? "-"})
                             </div>
@@ -389,10 +461,14 @@ export default function HomePage() {
                                           "total"
                                         )
                                       }
-                                      className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs whitespace-nowrap"
+                                      className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
                                     >
-                                      {outcome.name === "Over" ? "O" : "U"} {outcome.point}{" "}
-                                      {avgTotal ? convertDecimalToAmerican(avgTotal) : "-"}
+                                      <div className="flex flex-col sm:flex-row items-center justify-center leading-tight gap-x-1">
+                                        <span>
+                                          {outcome.name === "Over" ? "O" : "U"} {outcome.point}
+                                        </span>
+                                        <span>{avgTotal ? convertDecimalToAmerican(avgTotal) : "-"}</span>
+                                      </div>
                                     </button>
                                   );
                                 })
@@ -400,7 +476,6 @@ export default function HomePage() {
                               <span>-</span>
                             )}
                           </div>
-
 
                           <div></div>
                         </div>
@@ -412,6 +487,7 @@ export default function HomePage() {
             </ul>
           )}
         </div>
+
 
 
 

@@ -4,8 +4,8 @@ export interface LeagueMeta {
     season: string;
   }
   
-  export const leagueMap: Record<string, LeagueMeta> = {
-    League:  { sport: 'baseball',   leagueId: 1,  season: '2025' },
+  export const leagueMetaMap: Record<string, LeagueMeta> = {
+    "Select League":  { sport: 'baseball',   leagueId: 1,  season: '2025' },
     NBA:     { sport: 'basketball', leagueId: 12, season: '2024-2025' },
     NFL:     { sport: 'american-football',   leagueId: 1,  season: '2023' },
     MLB:     { sport: 'baseball',   leagueId: 1,  season: '2025' },
