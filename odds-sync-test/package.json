@@ -1,0 +1,18 @@
+{
+  "name": "odds-sync-test",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "algoliasearch": "^5.30.0",
+    "dotenv": "^17.0.1",
+    "mongodb": "^6.17.0",
+    "node-fetch": "^3.3.2"
+  }
+}
