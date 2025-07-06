@@ -24,8 +24,19 @@ const mainLeagueMap: { [key: string]: string } = {
   MLS: "soccer_usa_mls",
 };
 
-const sportsbooks = ["Caesars Sportsbook", "Tropicana Sportsbook", "Bet Parx"];
 
+const isSoccerLeague = (league: string): boolean => {
+  const soccerLeagues = [
+    "EPL",
+    "La Liga",
+    "Bundesliga",
+    "Serie A",
+    "Ligue 1",
+    "Champions League",
+    "MLS",
+  ];
+  return soccerLeagues.includes(league);
+};
 
 
 export default function HomePage() {
@@ -35,8 +46,8 @@ export default function HomePage() {
   const [odds, setOdds] = useState<any[]>([]);
   const [parlay, setParlay] = useState<any[]>([]);
   const [oddsView, setOddsView] = useState("American");
-  const [randomBook, setRandomBook] = useState("");
-  const [teamRecords, setTeamRecords] = useState<{ [key: string]: { wins: number; losses: number } }>({});
+  const [bestBook, setBestBook] = useState("");
+  const [teamRecords, setTeamRecords] = useState<{ [key: string]: { wins: number; losses: number; draws?: number } }>({});
 
   const ResponsiveTeamName = ({ name }: { name: string }) => {
     return (
@@ -114,7 +125,7 @@ export default function HomePage() {
             );
             const json = await res.json();
             if (res.ok) {
-              records[team] = { wins: json.wins, losses: json.losses };
+              records[team] = { wins: json.wins, losses: json.losses, draws: json.draws };
             } else {
               console.warn(`Failed to fetch record for ${team}:`, json.error);
             }
@@ -134,14 +145,12 @@ export default function HomePage() {
 
   const addToParlay = (gameId: string, outcome: any, marketType: string) => {
     setParlay((prev) => {
-      // Check if user already added a pick for this game + market
       const alreadyExists = prev.some(
         (pick) => pick.gameId === gameId && pick.marketType === marketType
       );
-  
       if (alreadyExists) {
         console.warn(`You already have a ${marketType} pick for this game.`);
-        return prev; // do NOT add duplicate side
+        return prev;
       }
   
       const updated = [
@@ -149,9 +158,47 @@ export default function HomePage() {
         { gameId, marketType, ...outcome },
       ];
   
-      if (updated.length === 2) {
-        const random = sportsbooks[Math.floor(Math.random() * sportsbooks.length)];
-        setRandomBook(random);
+      // 👇 Calculate best book once we have at least two legs
+      if (updated.length >= 2) {
+        const bookOdds: { [bookmaker: string]: number } = {};
+  
+        updated.forEach((pick) => {
+          if (pick.price && pick.bookmaker) {
+            if (!bookOdds[pick.bookmaker]) bookOdds[pick.bookmaker] = 1;
+            bookOdds[pick.bookmaker] *= Number(pick.price);
+          }
+        });
+  
+        const bestBook = Object.entries(bookOdds).sort((a, b) => b[1] - a[1])[0]?.[0];
+        if (bestBook) {
+          setBestBook(bestBook);
+        }
+      }
+  
+      return updated;
+    });
+  };
+  
+  
+
+  const removeFromParlay = (indexToRemove: number) => {
+    setParlay((prev) => {
+      const updated = prev.filter((_, index) => index !== indexToRemove);
+  
+      if (updated.length < 2) {
+        setBestBook("");
+      } else {
+        const bookOdds: { [bookmaker: string]: number } = {};
+  
+        updated.forEach((pick) => {
+          if (pick.price && pick.bookmaker) {
+            if (!bookOdds[pick.bookmaker]) bookOdds[pick.bookmaker] = 1;
+            bookOdds[pick.bookmaker] *= Number(pick.price);
+          }
+        });
+  
+        const newBestBook = Object.entries(bookOdds).sort((a, b) => b[1] - a[1])[0]?.[0];
+        setBestBook(newBestBook || "");
       }
   
       return updated;
@@ -159,17 +206,9 @@ export default function HomePage() {
   };
   
 
-  const removeFromParlay = (indexToRemove: number) => {
-    setParlay((prev) => {
-      const updated = prev.filter((_, index) => index !== indexToRemove);
-      if (updated.length < 2) setRandomBook("");
-      return updated;
-    });
-  };
-
   const clearParlay = () => {
     setParlay([]);
-    setRandomBook("");
+    setBestBook("");
   };
 
   const calculateParlayOddsDecimal = (): number => {
@@ -407,7 +446,11 @@ export default function HomePage() {
                           <div>
                             <ResponsiveTeamName name={teamName} />
                             <div className="text-xs text-gray-500">
-                              ({teamRecords[teamName]?.wins ?? "-"}-{teamRecords[teamName]?.losses ?? "-"})
+                              {teamRecords[teamName]
+                                ? isSoccerLeague(selectedLeague) && teamRecords[teamName].draws !== undefined
+                                  ? `(${teamRecords[teamName].wins}-${teamRecords[teamName].draws}-${teamRecords[teamName].losses})`
+                                  : `(${teamRecords[teamName].wins}-${teamRecords[teamName].losses})`
+                                : ""}
                             </div>
                           </div>
 
@@ -415,7 +458,9 @@ export default function HomePage() {
                           <div className="text-center">
                             {avgML && bestML ? (
                               <button
-                                onClick={() => addToParlay(game.id, bestML, "moneyline")}
+                                onClick={() =>
+                                  addToParlay(game.id, { ...bestML, bookmaker: game.bookmakers[0]?.title }, "moneyline")
+                                }
                                 className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
                               >
                                 {convertDecimalToAmerican(avgML)}
@@ -429,7 +474,13 @@ export default function HomePage() {
                           <div className="text-center">
                             {avgSpread && bestSpread ? (
                               <button
-                                onClick={() => addToParlay(game.id, bestSpread, "spread")}
+                                onClick={() =>
+                                  addToParlay(
+                                    game.id,
+                                    { ...bestSpread, bookmaker: game.bookmakers?.[0]?.title },
+                                    "spread"
+                                  )
+                                }
                                 className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs whitespace-nowrap"
                               >
                                 {bestSpread.point > 0 ? `+${bestSpread.point}` : bestSpread.point}{" "}
@@ -457,7 +508,11 @@ export default function HomePage() {
                                       onClick={() =>
                                         addToParlay(
                                           game.id,
-                                          { ...outcome, matchup: `${game.home_team} vs ${game.away_team}` },
+                                          {
+                                            ...outcome,
+                                            matchup: `${game.home_team} vs ${game.away_team}`,
+                                            bookmaker: game.bookmakers?.[0]?.title
+                                          },
                                           "total"
                                         )
                                       }
@@ -476,6 +531,7 @@ export default function HomePage() {
                               <span>-</span>
                             )}
                           </div>
+
 
                           <div></div>
                         </div>
@@ -531,12 +587,14 @@ export default function HomePage() {
               {parlay.length >= 2 && (
                 <div className="text-sm font-semibold mb-4 space-y-2">
                   <div>Parlay Odds ({oddsView}): {getFormattedOdds()}</div>
-                  <div className="text-xs text-gray-600">Best Odds: {randomBook}</div>
+                  <div className="text-xs text-gray-600">
+                    Best Book: {bestBook || "N/A"}
+                  </div>
                   <button
                     className="mt-2 text-xs px-3 py-2 bg-black text-white rounded hover:bg-gray-800"
                     onClick={() => window.open("https://example.com", "_blank")} // replace with real link
                   >
-                    Click Here to Sign Up to {randomBook}
+                    Click Here to Sign Up to {bestBook}
                   </button>
                 </div>
               )}

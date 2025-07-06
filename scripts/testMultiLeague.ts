@@ -19,6 +19,7 @@ const tests = [
   { team: 'Maple Leafs', league: 'NHL' },
   { team: 'Michigan', league: 'NCAAF' },
   { team: 'Duke', league: 'NCAAB' },
+  { team: 'Liverpool', league: 'EPL'}
 ];
 
 (async () => {

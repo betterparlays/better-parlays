@@ -1,0 +1,16 @@
+const leagues = {
+  NFL: 'americanfootball_nfl',
+  MLB: 'baseball_mlb',
+  NBA: 'basketball_nba',
+  NHL: 'icehockey_nhl',
+  NCAAF: 'americanfootball_ncaaf',
+  NCAAB: 'basketball_ncaab',
+  NCAAWB: 'basketball_ncaaw',
+  EPL: 'soccer_epl',
+  'La Liga': 'soccer_spain_la_liga',
+  Bundesliga: 'soccer_germany_bundesliga',
+  'Serie A': 'soccer_italy_serie_a',
+  'Ligue 1': 'soccer_france_ligue_one',
+  'Champions League': 'soccer_uefa_champs_league',
+  MLS: 'soccer_usa_mls'
+};
