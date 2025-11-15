@@ -52,6 +52,21 @@ export default function HomePage() {
   const [bestBook, setBestBook] = useState("");
   const [teamRecords, setTeamRecords] = useState<{ [key: string]: { wins: number; losses: number; draws?: number } }>({});
   const [currentPage, setCurrentPage] = useState(1);
+  const [showParlayToast, setShowParlayToast] = useState(false);
+  const [toastId, setToastId] = useState(0);
+  const [toastMessage, setToastMessage] = useState("");
+
+
+  useEffect(() => {
+    if (!showParlayToast) return;
+  
+    const timer = setTimeout(() => {
+      setShowParlayToast(false);
+    }, 3000);
+  
+    return () => clearTimeout(timer);
+  }, [showParlayToast, toastId]);
+  
 
   useEffect(() => {
     setCurrentPage(1);
@@ -188,6 +203,22 @@ export default function HomePage() {
           setBestBook(bestBook);
         }
       }
+
+      // Build toast message based on market type
+      const message =
+      marketType === "moneyline"
+        ? `${outcome.name} Moneyline Added`
+        : marketType === "spread"
+        ? `${outcome.name} Spread Added`
+        : marketType === "total"
+        ? `${outcome.matchup} Total Added`
+        : "Pick Added to Your Parlay Builder";
+
+      
+      setToastMessage(message);
+      setToastId((id) => id + 1);
+      setShowParlayToast(true);
+
   
       return updated;
     });
@@ -665,6 +696,28 @@ export default function HomePage() {
             </>
           )}
         </div>
+
+        {/*Parlay Pick Toast Notification*/}
+        {showParlayToast && (
+          <div className="fixed bottom-4 inset-x-0 flex justify-center z-50 pointer-events-none">
+            <div
+              key={toastId}
+              className="bg-black text-white px-4 py-2 rounded-full shadow-lg pointer-events-auto transform transition-all duration-500 ease-out overflow-hidden whitespace-nowrap"
+              style={{
+                animation: "riseAndFade 3s ease-in-out forwards",
+                fontSize: "clamp(0.65rem, 3vw, 0.875rem)", // auto-shrink
+                maxWidth: "90%", // avoid overflow on very long messages
+                textAlign: "center",
+              }}
+            >
+              {toastMessage}
+            </div>
+          </div>
+        )}
+
+
+
+
       </main>
       <footer className="w-full border-t border-black mt-10 py-10 px-4 bg-white flex justify-center">
         <div className="w-full max-w-screen-lg flex flex-col md:flex-row gap-8">
