@@ -209,9 +209,9 @@ export default function HomePage() {
       marketType === "moneyline"
         ? `${outcome.name} Moneyline Added`
         : marketType === "spread"
-        ? `${outcome.name} Spread Added`
+        ? `${outcome.name} ${outcome.point} Added`
         : marketType === "total"
-        ? `${outcome.matchup} Total Added`
+        ? `${outcome.matchup} ${outcome.name} Added`
         : "Pick Added to Your Parlay Builder";
 
       
