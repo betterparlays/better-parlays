@@ -5,14 +5,14 @@ export interface LeagueMeta {
   }
   
   export const leagueMetaMap: Record<string, LeagueMeta> = {
-    "Select League":  { sport: 'american-football',   leagueId: 1,  season: '2023' },
-    NBA:     { sport: 'basketball', leagueId: 12, season: '2024-2025' },
-    NFL:     { sport: 'american-football',   leagueId: 1,  season: '2023' },
+    "Select League":  { sport: 'american-football',   leagueId: 1,  season: '2025' },
+    NBA:     { sport: 'basketball', leagueId: 12, season: '2025-2026' },
+    NFL:     { sport: 'american-football',   leagueId: 1,  season: '2025' },
     MLB:     { sport: 'baseball',   leagueId: 1,  season: '2025' },
-    NHL:     { sport: 'hockey',     leagueId: 57, season: '2022' },
-    NCAAF:   { sport: 'american-football',   leagueId: 2,  season: '2023' },
-    NCAAB:   { sport: 'basketball', leagueId: 116, season: '2023-2024' },
-    NCAAWB:  { sport: 'basketball', leagueId: 423, season: '2024-2025' },
+    NHL:     { sport: 'hockey',     leagueId: 57, season: '2025' },
+    NCAAF:   { sport: 'american-football',   leagueId: 2,  season: '2025' },
+    NCAAB:   { sport: 'basketball', leagueId: 116, season: '2025-2026' },
+    NCAAWB:  { sport: 'basketball', leagueId: 423, season: '2025-2026' },
     EPL: { sport: 'football', leagueId: 39, season: '2025' },
     "La Liga": { sport: 'football', leagueId: 140, season: '2025' },
     Bundesliga: { sport: 'football', leagueId: 78, season: '2025' },
