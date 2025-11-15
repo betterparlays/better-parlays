@@ -5,9 +5,12 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
 
+const PAGE_SIZE = 3;
+
+
 const leagues = ["Select League", "NFL", "MLB", "NBA", "NHL", "NCAAF", "NCAAB", "NCAAWB", "EPL", "La Liga", "Bundesliga", "Serie A", "Ligue 1", "Champions League", "MLS"];
 const mainLeagueMap: { [key: string]: string } = {
-  "Select League": "baseball_mlb",
+  "Select League": "americanfootball_nfl",
   NFL: "americanfootball_nfl",
   MLB: "baseball_mlb",
   NBA: "basketball_nba",
@@ -48,7 +51,22 @@ export default function HomePage() {
   const [oddsView, setOddsView] = useState("American");
   const [bestBook, setBestBook] = useState("");
   const [teamRecords, setTeamRecords] = useState<{ [key: string]: { wins: number; losses: number; draws?: number } }>({});
+  const [currentPage, setCurrentPage] = useState(1);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedLeague, odds]);
+
+  const totalPages =
+    Array.isArray(odds) && odds.length > 0
+      ? Math.ceil(odds.length / PAGE_SIZE)
+      : 1;
+  
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const paginatedOdds = Array.isArray(odds)
+    ? odds.slice(startIndex, startIndex + PAGE_SIZE)
+    : [];
+  
   const ResponsiveTeamName = ({ name }: { name: string }) => {
     return (
       <div
@@ -93,26 +111,18 @@ export default function HomePage() {
   useEffect(() => {
     fetch(`/api/odds?sport=${mainLeagueMap[selectedLeague]}`)
       .then((res) => res.json())
-      .then((data) => {
-        console.log("📦 Raw odds data:", data); // 👈 Log here
-        setOdds(Array.isArray(data) ? data : []);
-      })
-      .catch((err) => {
-        console.error("Odds fetch error:", err);
-        setOdds([]);
-      });
-  }, [selectedLeague]);  
-  
-  useEffect(() => {
-    fetch(`/api/odds?sport=${mainLeagueMap[selectedLeague]}`)
-      .then((res) => res.json())
       .then(async (data) => {
-        const games = Array.isArray(data) ? data.slice(0, 3) : []; // Limit to first 3 games
-        setOdds(games);
+        const allGames = Array.isArray(data) ? data : [];
+        console.log("📦 Raw odds data:", allGames);
+        
+        // 🔹 Store ALL games for pagination
+        setOdds(allGames);
   
-        // 🔍 Extract only the teams from the displayed games
+        // 🔹 But only use first 3 (or paginated ones) for team records, to reduce API calls
+        const gamesForRecords = allGames.slice(0, 3);
+  
         const uniqueTeams = new Set<string>();
-        games.forEach((game: any) => {
+        gamesForRecords.forEach((game: any) => {
           uniqueTeams.add(game.home_team);
           uniqueTeams.add(game.away_team);
         });
@@ -125,7 +135,11 @@ export default function HomePage() {
             );
             const json = await res.json();
             if (res.ok) {
-              records[team] = { wins: json.wins, losses: json.losses, draws: json.draws };
+              records[team] = {
+                wins: json.wins,
+                losses: json.losses,
+                draws: json.draws,
+              };
             } else {
               console.warn(`Failed to fetch record for ${team}:`, json.error);
             }
@@ -389,160 +403,204 @@ export default function HomePage() {
           <p className="text-xs text-gray-500 mb-4">
             Displayed singles odds are averaged and may not reflect the most current odds
           </p>
+
           {!Array.isArray(odds) || odds.length === 0 ? (
-            <p className="text-sm text-gray-500">Check back later for {selectedLeague} matchups.</p>
+            <p className="text-sm text-gray-500">
+              Check back later for {selectedLeague} matchups.
+            </p>
           ) : (
-            <ul className="space-y-4">
-              {odds.slice(0, 3).map((game: any) => {
-                const teams = [game.home_team, game.away_team];
+            <>
+              <ul className="space-y-4">
+                {paginatedOdds.map((game: any) => {
+                  const teams = [game.home_team, game.away_team];
 
-                return (
-                  <li key={game.id} className="border border-black p-4 rounded-md shadow-sm">
-                    {/* Matchup Line */}
-                    <div className="mb-1">
-                      <div className="font-semibold">
-                        {game.home_team} vs {game.away_team}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(game.commence_time).toLocaleString("en-US", {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                          hour: "numeric",
-                          minute: "2-digit",
-                          hour12: true,
-                          timeZoneName: "short",
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Team Odds Row */}
-                    <div className="grid grid-cols-4 gap-5 font-semibold text-xs text-gray-600 border-b border-gray-300 pb-1 mb-2">
-                      <div>Team</div>
-                      <div className="text-center">Moneyline</div>
-                      <div className="text-center">Spread</div>
-                      <div className="text-center">Total</div>
-                    </div>
-
-                    {teams.map((teamName) => {
-                      const isHomeTeam = teamName === game.home_team;
-
-                      const avgML = getAveragePrice("h2h", teamName, game.bookmakers || []);
-                      const bestML = game.bookmakers?.[0]?.markets?.find((m: any) => m.key === "h2h")
-                        ?.outcomes?.find((o: any) => o.name === teamName);
-
-                      const avgSpread = getAveragePrice("spreads", teamName, game.bookmakers || []);
-                      const bestSpread = game.bookmakers?.[0]?.markets?.find((m: any) => m.key === "spreads")
-                        ?.outcomes?.find((o: any) => o.name === teamName);
-
-                      const totalMarket = game.bookmakers?.[0]?.markets?.find((m: any) => m.key === "totals");
-
-                      return (
-                        <div
-                          key={teamName}
-                          className="grid grid-cols-4 gap-5 items-center text-sm border-t border-gray-200 py-2"
-                        >
-                          {/* Team Name + Record */}
-                          <div>
-                            <ResponsiveTeamName name={teamName} />
-                            <div className="text-xs text-gray-500">
-                              {teamRecords[teamName]
-                                ? isSoccerLeague(selectedLeague) && teamRecords[teamName].draws !== undefined
-                                  ? `(${teamRecords[teamName].wins}-${teamRecords[teamName].draws}-${teamRecords[teamName].losses})`
-                                  : `(${teamRecords[teamName].wins}-${teamRecords[teamName].losses})`
-                                : ""}
-                            </div>
-                          </div>
-
-                          {/* Moneyline */}
-                          <div className="text-center">
-                            {avgML && bestML ? (
-                              <button
-                                onClick={() =>
-                                  addToParlay(game.id, { ...bestML, bookmaker: game.bookmakers[0]?.title }, "moneyline")
-                                }
-                                className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
-                              >
-                                {convertDecimalToAmerican(avgML)}
-                              </button>
-                            ) : (
-                              "-"
-                            )}
-                          </div>
-
-                          {/* Spread */}
-                          <div className="text-center">
-                            {avgSpread && bestSpread ? (
-                              <button
-                                onClick={() =>
-                                  addToParlay(
-                                    game.id,
-                                    { ...bestSpread, bookmaker: game.bookmakers?.[0]?.title },
-                                    "spread"
-                                  )
-                                }
-                                className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs whitespace-nowrap"
-                              >
-                                {bestSpread.point > 0 ? `+${bestSpread.point}` : bestSpread.point}{" "}
-                                {convertDecimalToAmerican(avgSpread)}
-                              </button>
-                            ) : (
-                              "-"
-                            )}
-                          </div>
-
-                          {/* Total */}
-                          <div className="text-center">
-                            {totalMarket?.outcomes?.some((o: any) =>
-                              isHomeTeam ? o.name === "Over" : o.name === "Under"
-                            ) ? (
-                              totalMarket.outcomes
-                                .filter((o: any) =>
-                                  isHomeTeam ? o.name === "Over" : o.name === "Under"
-                                )
-                                .map((outcome: any) => {
-                                  const avgTotal = getAveragePrice("totals", outcome.name, game.bookmakers || []);
-                                  return (
-                                    <button
-                                      key={outcome.name}
-                                      onClick={() =>
-                                        addToParlay(
-                                          game.id,
-                                          {
-                                            ...outcome,
-                                            matchup: `${game.home_team} vs ${game.away_team}`,
-                                            bookmaker: game.bookmakers?.[0]?.title
-                                          },
-                                          "total"
-                                        )
-                                      }
-                                      className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
-                                    >
-                                      <div className="flex flex-col sm:flex-row items-center justify-center leading-tight gap-x-1">
-                                        <span>
-                                          {outcome.name === "Over" ? "O" : "U"} {outcome.point}
-                                        </span>
-                                        <span>{avgTotal ? convertDecimalToAmerican(avgTotal) : "-"}</span>
-                                      </div>
-                                    </button>
-                                  );
-                                })
-                            ) : (
-                              <span>-</span>
-                            )}
-                          </div>
-
-
-                          <div></div>
+                  return (
+                    <li key={game.id} className="border border-black p-4 rounded-md shadow-sm">
+                      {/* Matchup Line */}
+                      <div className="mb-1">
+                        <div className="font-semibold">
+                          {game.home_team} vs {game.away_team}
                         </div>
-                      );
-                    })}
-                  </li>
-                );
-              })}
-            </ul>
+                        <div className="text-xs text-gray-500">
+                          {new Date(game.commence_time).toLocaleString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                            hour12: true,
+                            timeZoneName: "short",
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Team Odds Row */}
+                      <div className="grid grid-cols-4 gap-5 font-semibold text-xs text-gray-600 border-b border-gray-300 pb-1 mb-2">
+                        <div>Team</div>
+                        <div className="text-center">Moneyline</div>
+                        <div className="text-center">Spread</div>
+                        <div className="text-center">Total</div>
+                      </div>
+
+                      {teams.map((teamName) => {
+                        const isHomeTeam = teamName === game.home_team;
+
+                        const avgML = getAveragePrice("h2h", teamName, game.bookmakers || []);
+                        const bestML = game.bookmakers?.[0]?.markets
+                          ?.find((m: any) => m.key === "h2h")
+                          ?.outcomes?.find((o: any) => o.name === teamName);
+
+                        const avgSpread = getAveragePrice("spreads", teamName, game.bookmakers || []);
+                        const bestSpread = game.bookmakers?.[0]?.markets
+                          ?.find((m: any) => m.key === "spreads")
+                          ?.outcomes?.find((o: any) => o.name === teamName);
+
+                        const totalMarket = game.bookmakers?.[0]?.markets
+                          ?.find((m: any) => m.key === "totals");
+
+                        return (
+                          <div
+                            key={teamName}
+                            className="grid grid-cols-4 gap-5 items-center text-sm border-t border-gray-200 py-2"
+                          >
+                            {/* Team Name + Record */}
+                            <div>
+                              <ResponsiveTeamName name={teamName} />
+                              <div className="text-xs text-gray-500">
+                                {teamRecords[teamName]
+                                  ? isSoccerLeague(selectedLeague) &&
+                                    teamRecords[teamName].draws !== undefined
+                                    ? `(${teamRecords[teamName].wins}-${teamRecords[teamName].draws}-${teamRecords[teamName].losses})`
+                                    : `(${teamRecords[teamName].wins}-${teamRecords[teamName].losses})`
+                                  : ""}
+                              </div>
+                            </div>
+
+                            {/* Moneyline */}
+                            <div className="text-center">
+                              {avgML && bestML ? (
+                                <button
+                                  onClick={() =>
+                                    addToParlay(
+                                      game.id,
+                                      { ...bestML, bookmaker: game.bookmakers[0]?.title },
+                                      "moneyline"
+                                    )
+                                  }
+                                  className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
+                                >
+                                  {convertDecimalToAmerican(avgML)}
+                                </button>
+                              ) : (
+                                "-"
+                              )}
+                            </div>
+
+                            {/* Spread */}
+                            <div className="text-center">
+                              {avgSpread && bestSpread ? (
+                                <button
+                                  onClick={() =>
+                                    addToParlay(
+                                      game.id,
+                                      { ...bestSpread, bookmaker: game.bookmakers?.[0]?.title },
+                                      "spread"
+                                    )
+                                  }
+                                  className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs whitespace-nowrap"
+                                >
+                                  {bestSpread.point > 0 ? `+${bestSpread.point}` : bestSpread.point}{" "}
+                                  {convertDecimalToAmerican(avgSpread)}
+                                </button>
+                              ) : (
+                                "-"
+                              )}
+                            </div>
+
+                            {/* Total */}
+                            <div className="text-center">
+                              {totalMarket?.outcomes?.some((o: any) =>
+                                isHomeTeam ? o.name === "Over" : o.name === "Under"
+                              ) ? (
+                                totalMarket.outcomes
+                                  .filter((o: any) =>
+                                    isHomeTeam ? o.name === "Over" : o.name === "Under"
+                                  )
+                                  .map((outcome: any) => {
+                                    const avgTotal = getAveragePrice(
+                                      "totals",
+                                      outcome.name,
+                                      game.bookmakers || []
+                                    );
+                                    return (
+                                      <button
+                                        key={outcome.name}
+                                        onClick={() =>
+                                          addToParlay(
+                                            game.id,
+                                            {
+                                              ...outcome,
+                                              matchup: `${game.home_team} vs ${game.away_team}`,
+                                              bookmaker: game.bookmakers?.[0]?.title,
+                                            },
+                                            "total"
+                                          )
+                                        }
+                                        className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
+                                      >
+                                        <div className="flex flex-col sm:flex-row items-center justify-center leading-tight gap-x-1">
+                                          <span>
+                                            {outcome.name === "Over" ? "O" : "U"} {outcome.point}
+                                          </span>
+                                          <span>
+                                            {avgTotal ? convertDecimalToAmerican(avgTotal) : "-"}
+                                          </span>
+                                        </div>
+                                      </button>
+                                    );
+                                  })
+                              ) : (
+                                <span>-</span>
+                              )}
+                            </div>
+
+                            <div></div>
+                          </div>
+                        );
+                      })}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4 text-xs">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-2 py-1 border rounded disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+
+                  <span>
+                    Page {currentPage} of {totalPages}
+                  </span>
+
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-2 py-1 border rounded disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
+
 
 
 
