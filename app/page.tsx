@@ -209,7 +209,7 @@ export default function HomePage() {
       marketType === "moneyline"
         ? `${outcome.name} Moneyline Added`
         : marketType === "spread"
-        ? `${outcome.name} ${outcome.point} Added`
+        ? `${outcome.name} ${outcome.point > 0 ? `+${outcome.point}` : outcome.point} Added`
         : marketType === "total"
         ? `${outcome.matchup} ${outcome.name} Added`
         : "Pick Added to Your Parlay Builder";
