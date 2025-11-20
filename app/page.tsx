@@ -55,7 +55,23 @@ export default function HomePage() {
   const [showParlayToast, setShowParlayToast] = useState(false);
   const [toastId, setToastId] = useState(0);
   const [toastMessage, setToastMessage] = useState("");
+  const gamesSectionRef = useRef<HTMLDivElement | null>(null);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [toastVariant, setToastVariant] = useState<"add" | "delete">("add");
 
+
+  useEffect(() => {
+    if (gamesSectionRef.current) {
+      gamesSectionRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    } else {
+      // Fallback: scroll window top if ref isn't attached for some reason
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [currentPage]);
+  
 
   useEffect(() => {
     if (!showParlayToast) return;
@@ -126,50 +142,70 @@ export default function HomePage() {
   useEffect(() => {
     fetch(`/api/odds?sport=${mainLeagueMap[selectedLeague]}`)
       .then((res) => res.json())
-      .then(async (data) => {
+      .then((data) => {
         const allGames = Array.isArray(data) ? data : [];
         console.log("📦 Raw odds data:", allGames);
-        
-        // 🔹 Store ALL games for pagination
         setOdds(allGames);
   
-        // 🔹 But only use first 3 (or paginated ones) for team records, to reduce API calls
-        const gamesForRecords = allGames.slice(0, 3);
-  
-        const uniqueTeams = new Set<string>();
-        gamesForRecords.forEach((game: any) => {
-          uniqueTeams.add(game.home_team);
-          uniqueTeams.add(game.away_team);
-        });
-  
-        const records: any = {};
-        for (const team of uniqueTeams) {
-          try {
-            const res = await fetch(
-              `/api/team-record?team=${encodeURIComponent(team)}&league=${selectedLeague}`
-            );
-            const json = await res.json();
-            if (res.ok) {
-              records[team] = {
-                wins: json.wins,
-                losses: json.losses,
-                draws: json.draws,
-              };
-            } else {
-              console.warn(`Failed to fetch record for ${team}:`, json.error);
-            }
-          } catch (err) {
-            console.error(`Fetch error for ${team}:`, err);
-          }
-        }
-  
-        setTeamRecords(records);
+        // reset records when league changes
+        setTeamRecords({});
       })
       .catch((err) => {
         console.error("Odds fetch error:", err);
         setOdds([]);
+        setTeamRecords({});
       });
-  }, [selectedLeague]);  
+  }, [selectedLeague]);
+
+  useEffect(() => {
+    if (!Array.isArray(odds) || odds.length === 0) {
+      setRecordsLoading(false);
+      return;
+    }
+  
+    setRecordsLoading(true);
+  
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    const currentGames = odds.slice(startIndex, startIndex + PAGE_SIZE);
+  
+    const uniqueTeams = new Set<string>();
+    currentGames.forEach((game: any) => {
+      uniqueTeams.add(game.home_team);
+      uniqueTeams.add(game.away_team);
+    });
+  
+    const fetchRecords = async () => {
+      const newRecords: any = {};
+  
+      for (const team of uniqueTeams) {
+        try {
+          const res = await fetch(
+            `/api/team-record?team=${encodeURIComponent(team)}&league=${selectedLeague}`
+          );
+          const json = await res.json();
+          if (res.ok) {
+            newRecords[team] = {
+              wins: json.wins,
+              losses: json.losses,
+              draws: json.draws,
+            };
+          } else {
+            console.warn(`Failed to fetch record for ${team}:`, json.error);
+          }
+        } catch (err) {
+          console.error(`Fetch error for ${team}:`, err);
+        }
+      }
+  
+      // merge into existing records so previous pages stay cached
+      setTeamRecords((prev) => ({ ...prev, ...newRecords }));
+      setRecordsLoading(false);
+    };
+  
+    fetchRecords();
+  }, [selectedLeague, currentPage, odds]);
+  
+    
   
 
   const addToParlay = (gameId: string, outcome: any, marketType: string) => {
@@ -214,7 +250,8 @@ export default function HomePage() {
         ? `${outcome.matchup} ${outcome.name} Added`
         : "Pick Added to Your Parlay Builder";
 
-      
+      // 🔁 Update toast for ADD
+      setToastVariant("add");
       setToastMessage(message);
       setToastId((id) => id + 1);
       setShowParlayToast(true);
@@ -228,6 +265,8 @@ export default function HomePage() {
 
   const removeFromParlay = (indexToRemove: number) => {
     setParlay((prev) => {
+      const removedPick = prev[indexToRemove];
+  
       const updated = prev.filter((_, index) => index !== indexToRemove);
   
       if (updated.length < 2) {
@@ -246,9 +285,29 @@ export default function HomePage() {
         setBestBook(newBestBook || "");
       }
   
+      // 🔥 Show "Deleted" toast if we know which pick was removed
+      if (removedPick) {
+        const deleteMessage =
+          removedPick.marketType === "moneyline"
+            ? `${removedPick.name} Moneyline Deleted`
+            : removedPick.marketType === "spread"
+            ? `${removedPick.name} ${
+                removedPick.point > 0 ? `+${removedPick.point}` : removedPick.point
+              } Deleted`
+            : removedPick.marketType === "total"
+            ? `${removedPick.matchup} ${removedPick.name} Deleted`
+            : "Pick Deleted From Your Parlay Builder";
+  
+        setToastVariant("delete");
+        setToastMessage(deleteMessage);
+        setToastId((id) => id + 1);
+        setShowParlayToast(true);
+      }
+  
       return updated;
     });
   };
+  
   
 
   const clearParlay = () => {
@@ -427,7 +486,7 @@ export default function HomePage() {
 
 
         {/* Upcoming Games Section */}
-        <div className="w-full max-w-3xl mt-10">
+        <div ref={gamesSectionRef} className="w-full max-w-3xl mt-10">
           <h2 className="text-lg font-bold mb-1">
             Upcoming {selectedLeague === "Select League" ? "" : `${selectedLeague} `}Games
           </h2>
@@ -702,11 +761,13 @@ export default function HomePage() {
           <div className="fixed bottom-4 inset-x-0 flex justify-center z-50 pointer-events-none">
             <div
               key={toastId}
-              className="bg-black text-white px-4 py-2 rounded-full shadow-lg pointer-events-auto transform transition-all duration-500 ease-out overflow-hidden whitespace-nowrap"
+              className={`${
+                toastVariant === "delete" ? "bg-red-600" : "bg-black"
+              } text-white text-sm px-4 py-2 rounded-full shadow-lg pointer-events-auto transform transition-all duration-500 ease-out opacity-100 translate-y-0 overflow-hidden whitespace-nowrap truncate`}
               style={{
                 animation: "riseAndFade 3s ease-in-out forwards",
-                fontSize: "clamp(0.65rem, 3vw, 0.875rem)", // auto-shrink
-                maxWidth: "90%", // avoid overflow on very long messages
+                fontSize: "clamp(0.65rem, 3vw, 0.875rem)",
+                maxWidth: "90%",
                 textAlign: "center",
               }}
             >
@@ -714,6 +775,7 @@ export default function HomePage() {
             </div>
           </div>
         )}
+
 
 
 
