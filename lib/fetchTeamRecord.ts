@@ -45,20 +45,26 @@ export const fetchTeamRecord = async (oddsApiTeamName: string, leagueKey: string
   }
 
   // 🐛 Debug response preview
-  console.log(`${leagueKey} raw response shape:`, JSON.stringify(raw, null, 2).slice(0, 500));
+  console.log(
+    `${leagueKey} raw response shape:`,
+    JSON.stringify(raw, null, 2).slice(0, 500)
+  );
 
   let standingsArray: any[] = [];
 
   if (sport === 'football') {
+    // API-FOOTBALL (soccer)
     standingsArray = raw[0]?.league?.standings?.[0] ?? [];
   } else if (Array.isArray(raw) && Array.isArray(raw[0])) {
-    standingsArray = raw[0]; // NBA-style
+    // NBA / some NHL responses: nested array
+    standingsArray = raw[0];
   } else if (Array.isArray(raw)) {
-    standingsArray = raw; // MLB, NHL, etc.
+    // MLB, NHL flat, NFL, etc.
+    standingsArray = raw;
   } else {
     throw new Error('Unexpected API-Sports standings format for this league');
   }
-  
+
   if (!standingsArray.length) {
     console.error(`❌ No standings data extracted for league: ${leagueKey}`);
     throw new Error("Empty standings array");
@@ -88,22 +94,41 @@ export const fetchTeamRecord = async (oddsApiTeamName: string, leagueKey: string
   }
 
   // 🧾 Optional full debug output for key leagues
-  if (['NHL', 'EPL'].includes(leagueKey)) {
+  if (['NHL', 'EPL', 'NFL'].includes(leagueKey)) {
     console.log(`📊 Full data for ${teamData.team.name}:`);
     console.log(JSON.stringify(teamData, null, 2));
   }
 
-  const wins =
-    (teamData.games?.win?.total ?? 0) +
-    (teamData.games?.win_overtime?.total ?? 0) +
-    (teamData.all?.win ?? 0); // Football uses 'all.win'
+  // ✅ Normalize wins/losses/draws per sport
+  let wins = 0;
+  let losses = 0;
+  let draws = 0;
 
-  const losses =
-    (teamData.games?.lose?.total ?? 0) +
-    (teamData.games?.lose_overtime?.total ?? 0) +
-    (teamData.all?.lose ?? 0); // Football uses 'all.lose'
+  if (sport === 'football') {
+    // Soccer (API-FOOTBALL): "all" summary object
+    wins = teamData.all?.win ?? 0;
+    losses = teamData.all?.lose ?? 0;
+    draws = teamData.all?.draw ?? 0;
+  } else if (sport === 'american-football') {
+    // NFL: top-level won / lost / ties fields
+    wins = teamData.won ?? 0;
+    losses = teamData.lost ?? 0;
+    draws = teamData.ties ?? 0;
+  } else {
+    // NBA / NHL / MLB / generic API-SPORTS (hockey, basketball, baseball)
+    wins =
+      (teamData.games?.win?.total ?? 0) +
+      (teamData.games?.win_overtime?.total ?? 0);
 
-  const draws = teamData.all?.draw ?? 0;
+    losses =
+      (teamData.games?.lose?.total ?? 0) +
+      (teamData.games?.lose_overtime?.total ?? 0);
+
+    draws =
+      teamData.games?.draw?.total ??
+      teamData.games?.tie?.total ??
+      0;
+  }
 
   return {
     team: teamData.team.name,

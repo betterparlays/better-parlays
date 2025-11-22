@@ -97,6 +97,14 @@ export default function HomePage() {
   const paginatedOdds = Array.isArray(odds)
     ? odds.slice(startIndex, startIndex + PAGE_SIZE)
     : [];
+
+  const upcomingGames = Array.isArray(paginatedOdds)
+  ? paginatedOdds.filter((game: any) => {
+      const start = new Date(game.commence_time).getTime();
+      const now = Date.now();
+      return start > now; // only future games
+    })
+  : [];
   
   const ResponsiveTeamName = ({ name }: { name: string }) => {
     return (
@@ -501,7 +509,7 @@ export default function HomePage() {
           ) : (
             <>
               <ul className="space-y-4">
-                {paginatedOdds.map((game: any) => {
+              {upcomingGames.map((game: any) => {
                   const teams = [game.home_team, game.away_team];
 
                   return (
