@@ -302,16 +302,16 @@ export default function HomePage() {
       if (removedPick) {
         const deleteMessage =
           removedPick.marketType === "moneyline"
-            ? `${removedPick.name} Moneyline Deleted`
+            ? `${removedPick.name} Moneyline Removed`
             : removedPick.marketType === "spread"
             ? `${removedPick.name} ${
                 removedPick.point > 0
                   ? `+${removedPick.point}`
                   : removedPick.point
-              } Deleted`
+              } Removed`
             : removedPick.marketType === "total"
-            ? `${removedPick.matchup} ${removedPick.name} Deleted`
-            : "Pick Deleted From Your Parlay Builder";
+            ? `${removedPick.matchup} ${removedPick.name} Removed`
+            : "Pick Removed From Your Parlay Builder";
 
         setToastVariant("delete");
         setToastMessage(deleteMessage);
