@@ -71,7 +71,6 @@ export default function HomePage() {
   const [toastId, setToastId] = useState(0);
   const [toastMessage, setToastMessage] = useState("");
   const gamesSectionRef = useRef<HTMLDivElement | null>(null);
-  const [recordsLoading, setRecordsLoading] = useState(false);
   const [toastVariant, setToastVariant] = useState<"add" | "delete">("add");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -155,13 +154,6 @@ export default function HomePage() {
 
   // Fetch records for teams on the current page
   useEffect(() => {
-    if (!Array.isArray(odds) || odds.length === 0) {
-      setRecordsLoading(false);
-      return;
-    }
-
-    setRecordsLoading(true);
-
     const startIndex = (currentPage - 1) * PAGE_SIZE;
     const currentGames = odds.slice(startIndex, startIndex + PAGE_SIZE);
 
@@ -197,7 +189,6 @@ export default function HomePage() {
       }
 
       setTeamRecords((prev) => ({ ...prev, ...newRecords }));
-      setRecordsLoading(false);
     };
 
     fetchRecords();
