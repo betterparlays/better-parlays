@@ -4,11 +4,26 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
-
 const PAGE_SIZE = 3;
 
+const leagues = [
+  "Select League",
+  "NFL",
+  "MLB",
+  "NBA",
+  "NHL",
+  "NCAAF",
+  "NCAAB",
+  "NCAAWB",
+  "EPL",
+  "La Liga",
+  "Bundesliga",
+  "Serie A",
+  "Ligue 1",
+  "Champions League",
+  "MLS",
+];
 
-const leagues = ["Select League", "NFL", "MLB", "NBA", "NHL", "NCAAF", "NCAAB", "NCAAWB", "EPL", "La Liga", "Bundesliga", "Serie A", "Ligue 1", "Champions League", "MLS"];
 const mainLeagueMap: { [key: string]: string } = {
   "Select League": "americanfootball_nfl",
   NFL: "americanfootball_nfl",
@@ -27,7 +42,6 @@ const mainLeagueMap: { [key: string]: string } = {
   MLS: "soccer_usa_mls",
 };
 
-
 const isSoccerLeague = (league: string): boolean => {
   const soccerLeagues = [
     "EPL",
@@ -41,7 +55,6 @@ const isSoccerLeague = (league: string): boolean => {
   return soccerLeagues.includes(league);
 };
 
-
 export default function HomePage() {
   const [selectedLeague, setSelectedLeague] = useState("Select League");
   const [selectWidth, setSelectWidth] = useState<number>(0);
@@ -50,7 +63,9 @@ export default function HomePage() {
   const [parlay, setParlay] = useState<any[]>([]);
   const [oddsView, setOddsView] = useState("American");
   const [bestBook, setBestBook] = useState("");
-  const [teamRecords, setTeamRecords] = useState<{ [key: string]: { wins: number; losses: number; draws?: number } }>({});
+  const [teamRecords, setTeamRecords] = useState<{
+    [key: string]: { wins: number; losses: number; draws?: number };
+  }>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [showParlayToast, setShowParlayToast] = useState(false);
   const [toastId, setToastId] = useState(0);
@@ -58,8 +73,9 @@ export default function HomePage() {
   const gamesSectionRef = useRef<HTMLDivElement | null>(null);
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [toastVariant, setToastVariant] = useState<"add" | "delete">("add");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-
+  // Scroll to games section when page changes
   useEffect(() => {
     if (gamesSectionRef.current) {
       gamesSectionRef.current.scrollIntoView({
@@ -67,96 +83,51 @@ export default function HomePage() {
         block: "start",
       });
     } else {
-      // Fallback: scroll window top if ref isn't attached for some reason
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [currentPage]);
-  
 
+  // Auto-hide toast
   useEffect(() => {
     if (!showParlayToast) return;
-  
+
     const timer = setTimeout(() => {
       setShowParlayToast(false);
     }, 3000);
-  
+
     return () => clearTimeout(timer);
   }, [showParlayToast, toastId]);
-  
 
+  // Reset page to 1 when league changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedLeague, odds]);
+  }, [selectedLeague]);
 
-  const totalPages =
-    Array.isArray(odds) && odds.length > 0
-      ? Math.ceil(odds.length / PAGE_SIZE)
-      : 1;
-  
-  const startIndex = (currentPage - 1) * PAGE_SIZE;
-  const paginatedOdds = Array.isArray(odds)
-    ? odds.slice(startIndex, startIndex + PAGE_SIZE)
-    : [];
-
-  const upcomingGames = Array.isArray(paginatedOdds)
-  ? paginatedOdds.filter((game: any) => {
-      const start = new Date(game.commence_time).getTime();
-      const now = Date.now();
-      return start > now; // only future games
-    })
-  : [];
-  
-  const ResponsiveTeamName = ({ name }: { name: string }) => {
-    return (
-      <div
-        className="font-medium text-[clamp(0.75rem,3vw,1rem)] leading-snug break-words relative z-10"
-        style={{
-          position: "relative",             // Needed for z-index to work
-          zIndex: 10,                       // Ensures it's layered on top
-          wordBreak: "keep-all",
-          overflowWrap: "normal",
-          hyphens: "none",
-          maxHeight: "calc(1.25em * 3)",
-          display: "-webkit-box",
-          WebkitBoxOrient: "vertical",
-          WebkitLineClamp: 3,
-          overflow: "visible",             // Allows spillover
-        }}
-      >
-        {name}
-      </div>
-    );
-  };
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-
+  // Measure select width
   useEffect(() => {
     if (textRef.current) {
-      const width = textRef.current.offsetWidth + 32; // add padding buffer
+      const width = textRef.current.offsetWidth + 32; // padding buffer
       setSelectWidth(width);
     }
   }, [selectedLeague]);
 
+  // Fetch odds and strip out live/already-started games at the source
   useEffect(() => {
     fetch(`/api/odds?sport=${mainLeagueMap[selectedLeague]}`)
       .then((res) => res.json())
       .then((data) => {
         const allGames = Array.isArray(data) ? data : [];
         console.log("📦 Raw odds data:", allGames);
-        setOdds(allGames);
-  
-        // reset records when league changes
+
+        const now = Date.now();
+        const futureGames = allGames.filter((game: any) => {
+          const start = new Date(game.commence_time).getTime();
+          return start > now; // only future games
+        });
+
+        setOdds(futureGames);
         setTeamRecords({});
+        setCurrentPage(1);
       })
       .catch((err) => {
         console.error("Odds fetch error:", err);
@@ -165,30 +136,50 @@ export default function HomePage() {
       });
   }, [selectedLeague]);
 
+  // Pagination derived from odds (which already excludes live games)
+  const itemsPerPage = PAGE_SIZE;
+  const totalPages = Math.ceil(odds.length / itemsPerPage);
+  const paginatedOdds = odds.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Clamp currentPage if odds length changes
+  useEffect(() => {
+    if (totalPages === 0 && currentPage !== 1) {
+      setCurrentPage(1);
+    } else if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  // Fetch records for teams on the current page
   useEffect(() => {
     if (!Array.isArray(odds) || odds.length === 0) {
       setRecordsLoading(false);
       return;
     }
-  
+
     setRecordsLoading(true);
-  
+
     const startIndex = (currentPage - 1) * PAGE_SIZE;
     const currentGames = odds.slice(startIndex, startIndex + PAGE_SIZE);
-  
+
     const uniqueTeams = new Set<string>();
     currentGames.forEach((game: any) => {
       uniqueTeams.add(game.home_team);
       uniqueTeams.add(game.away_team);
     });
-  
+
     const fetchRecords = async () => {
       const newRecords: any = {};
-  
+
       for (const team of uniqueTeams) {
         try {
           const res = await fetch(
-            `/api/team-record?team=${encodeURIComponent(team)}&league=${selectedLeague}`
+            `/api/team-record?team=${encodeURIComponent(
+              team
+            )}&league=${selectedLeague}`
           );
           const json = await res.json();
           if (res.ok) {
@@ -204,17 +195,35 @@ export default function HomePage() {
           console.error(`Fetch error for ${team}:`, err);
         }
       }
-  
-      // merge into existing records so previous pages stay cached
+
       setTeamRecords((prev) => ({ ...prev, ...newRecords }));
       setRecordsLoading(false);
     };
-  
+
     fetchRecords();
   }, [selectedLeague, currentPage, odds]);
-  
-    
-  
+
+  const ResponsiveTeamName = ({ name }: { name: string }) => {
+    return (
+      <div
+        className="font-medium text-[clamp(0.75rem,3vw,1rem)] leading-snug break-words relative z-10"
+        style={{
+          position: "relative",
+          zIndex: 10,
+          wordBreak: "keep-all",
+          overflowWrap: "normal",
+          hyphens: "none",
+          maxHeight: "calc(1.25em * 3)",
+          display: "-webkit-box",
+          WebkitBoxOrient: "vertical",
+          WebkitLineClamp: 3,
+          overflow: "visible",
+        }}
+      >
+        {name}
+      </div>
+    );
+  };
 
   const addToParlay = (gameId: string, outcome: any, marketType: string) => {
     setParlay((prev) => {
@@ -225,98 +234,94 @@ export default function HomePage() {
         console.warn(`You already have a ${marketType} pick for this game.`);
         return prev;
       }
-  
-      const updated = [
-        ...prev,
-        { gameId, marketType, ...outcome },
-      ];
-  
-      // 👇 Calculate best book once we have at least two legs
+
+      const updated = [...prev, { gameId, marketType, ...outcome }];
+
       if (updated.length >= 2) {
         const bookOdds: { [bookmaker: string]: number } = {};
-  
+
         updated.forEach((pick) => {
           if (pick.price && pick.bookmaker) {
             if (!bookOdds[pick.bookmaker]) bookOdds[pick.bookmaker] = 1;
             bookOdds[pick.bookmaker] *= Number(pick.price);
           }
         });
-  
-        const bestBook = Object.entries(bookOdds).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+        const bestBook = Object.entries(bookOdds).sort(
+          (a, b) => b[1] - a[1]
+        )[0]?.[0];
         if (bestBook) {
           setBestBook(bestBook);
         }
       }
 
-      // Build toast message based on market type
       const message =
-      marketType === "moneyline"
-        ? `${outcome.name} Moneyline Added`
-        : marketType === "spread"
-        ? `${outcome.name} ${outcome.point > 0 ? `+${outcome.point}` : outcome.point} Added`
-        : marketType === "total"
-        ? `${outcome.matchup} ${outcome.name} Added`
-        : "Pick Added to Your Parlay Builder";
+        marketType === "moneyline"
+          ? `${outcome.name} Moneyline Added`
+          : marketType === "spread"
+          ? `${outcome.name} ${
+              outcome.point > 0 ? `+${outcome.point}` : outcome.point
+            } Added`
+          : marketType === "total"
+          ? `${outcome.matchup} ${outcome.name} Added`
+          : "Pick Added to Your Parlay Builder";
 
-      // 🔁 Update toast for ADD
       setToastVariant("add");
       setToastMessage(message);
       setToastId((id) => id + 1);
       setShowParlayToast(true);
 
-  
       return updated;
     });
   };
-  
-  
 
   const removeFromParlay = (indexToRemove: number) => {
     setParlay((prev) => {
       const removedPick = prev[indexToRemove];
-  
+
       const updated = prev.filter((_, index) => index !== indexToRemove);
-  
+
       if (updated.length < 2) {
         setBestBook("");
       } else {
         const bookOdds: { [bookmaker: string]: number } = {};
-  
+
         updated.forEach((pick) => {
           if (pick.price && pick.bookmaker) {
             if (!bookOdds[pick.bookmaker]) bookOdds[pick.bookmaker] = 1;
             bookOdds[pick.bookmaker] *= Number(pick.price);
           }
         });
-  
-        const newBestBook = Object.entries(bookOdds).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+        const newBestBook = Object.entries(bookOdds).sort(
+          (a, b) => b[1] - a[1]
+        )[0]?.[0];
         setBestBook(newBestBook || "");
       }
-  
-      // 🔥 Show "Deleted" toast if we know which pick was removed
+
       if (removedPick) {
         const deleteMessage =
           removedPick.marketType === "moneyline"
             ? `${removedPick.name} Moneyline Deleted`
             : removedPick.marketType === "spread"
             ? `${removedPick.name} ${
-                removedPick.point > 0 ? `+${removedPick.point}` : removedPick.point
+                removedPick.point > 0
+                  ? `+${removedPick.point}`
+                  : removedPick.point
               } Deleted`
             : removedPick.marketType === "total"
             ? `${removedPick.matchup} ${removedPick.name} Deleted`
             : "Pick Deleted From Your Parlay Builder";
-  
+
         setToastVariant("delete");
         setToastMessage(deleteMessage);
         setToastId((id) => id + 1);
         setShowParlayToast(true);
       }
-  
+
       return updated;
     });
   };
-  
-  
 
   const clearParlay = () => {
     setParlay([]);
@@ -337,7 +342,9 @@ export default function HomePage() {
     if (oddsView === "Decimal") return decimalOdds.toFixed(2);
     if (oddsView === "American") {
       const profit = decimalOdds - 1;
-      return profit >= 1 ? `+${(profit * 100).toFixed(0)}` : `-${(100 / profit).toFixed(0)}`;
+      return profit >= 1
+        ? `+${(profit * 100).toFixed(0)}`
+        : `-${(100 / profit).toFixed(0)}`;
     }
     return decimalOdds.toFixed(2);
   };
@@ -349,13 +356,14 @@ export default function HomePage() {
       ? `+${(profit * 100).toFixed(0)}`
       : `-${(100 / profit).toFixed(0)}`;
   };
-  
 
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  const getAveragePrice = (marketKey: string, teamName: string, bookmakers: any[]) => {
+  const getAveragePrice = (
+    marketKey: string,
+    teamName: string,
+    bookmakers: any[]
+  ) => {
     const prices: number[] = [];
-  
+
     bookmakers.forEach((book: any) => {
       const market = book.markets?.find((m: any) => m.key === marketKey);
       const outcome = market?.outcomes?.find((o: any) => o.name === teamName);
@@ -363,10 +371,11 @@ export default function HomePage() {
         prices.push(Number(outcome.price));
       }
     });
-  
+
     if (prices.length === 0) return null;
-  
-    const average = prices.reduce((acc, val) => acc + val, 0) / prices.length;
+
+    const average =
+      prices.reduce((acc, val) => acc + val, 0) / prices.length;
     return average;
   };
 
@@ -376,11 +385,29 @@ export default function HomePage() {
       <nav className="flex flex-col px-4 sm:px-6 md:px-8 py-6 border-b border-black">
         <div className="flex justify-between items-center">
           <div className="w-40 h-16 sm:w-48 sm:h-20">
-            <svg viewBox="-10 0 340 100" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-              <text x="16" y="42" fontSize="50" fontWeight="1000" fill="#d1d5db" transform="skewX(-25)">
+            <svg
+              viewBox="-10 0 340 100"
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-full h-full"
+            >
+              <text
+                x="16"
+                y="42"
+                fontSize="50"
+                fontWeight="1000"
+                fill="#d1d5db"
+                transform="skewX(-25)"
+              >
                 BETTER
               </text>
-              <text x="31" y="94" fontSize="50" fontWeight="1000" fill="#d1d5db" transform="skewX(-25)">
+              <text
+                x="31"
+                y="94"
+                fontSize="50"
+                fontWeight="1000"
+                fill="#d1d5db"
+                transform="skewX(-25)"
+              >
                 PARLAYS
               </text>
             </svg>
@@ -389,13 +416,19 @@ export default function HomePage() {
           {/* Desktop Links */}
           <ul className="hidden md:flex flex-nowrap justify-end gap-x-6 text-sm font-medium text-black">
             <li>
-              <Link href="/promotions" className="hover:underline">Promotions</Link>
+              <Link href="/promotions" className="hover:underline">
+                Promotions
+              </Link>
             </li>
             <li>
-              <Link href="/our-picks" className="hover:underline">Our Picks</Link>
+              <Link href="/our-picks" className="hover:underline">
+                Our Picks
+              </Link>
             </li>
             <li>
-              <Link href="/sign-up" className="hover:underline">Sign Up</Link>
+              <Link href="/sign-up" className="hover:underline">
+                Sign Up
+              </Link>
             </li>
           </ul>
 
@@ -420,17 +453,29 @@ export default function HomePage() {
         >
           <ul className="flex flex-col items-center gap-y-4 text-sm font-medium text-black">
             <li>
-              <Link href="/promotions" onClick={() => setIsMobileMenuOpen(false)} className="hover:underline">
+              <Link
+                href="/promotions"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="hover:underline"
+              >
                 Promotions
               </Link>
             </li>
             <li>
-              <Link href="/our-picks" onClick={() => setIsMobileMenuOpen(false)} className="hover:underline">
+              <Link
+                href="/our-picks"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="hover:underline"
+              >
                 Our Picks
               </Link>
             </li>
             <li>
-              <Link href="/sign-up" onClick={() => setIsMobileMenuOpen(false)} className="hover:underline">
+              <Link
+                href="/sign-up"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="hover:underline"
+              >
                 Sign Up
               </Link>
             </li>
@@ -468,8 +513,19 @@ export default function HomePage() {
 
               {/* Custom dropdown arrow */}
               <div className="pointer-events-none absolute right-2 top-1/2 transform -translate-y-1/2 text-black">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
                 </svg>
               </div>
             </div>
@@ -481,25 +537,33 @@ export default function HomePage() {
             />
 
             <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex-shrink-0">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M16.65 10.65A6 6 0 1110.65 4a6 6 0 016 6.65z" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5 text-black"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-4.35-4.35M16.65 10.65A6 6 0 1110.65 4a6 6 0 016 6.65z"
+                />
               </svg>
             </div>
           </div>
         </div>
 
-
-
-
-
-
         {/* Upcoming Games Section */}
         <div ref={gamesSectionRef} className="w-full max-w-3xl mt-10">
           <h2 className="text-lg font-bold mb-1">
-            Upcoming {selectedLeague === "Select League" ? "" : `${selectedLeague} `}Games
+            Upcoming{" "}
+            {selectedLeague === "Select League" ? "" : `${selectedLeague} `}Games
           </h2>
           <p className="text-xs text-gray-500 mb-4">
-            Displayed singles odds are averaged and may not reflect the most current odds
+            Displayed singles odds are averaged and may not reflect the most
+            current odds
           </p>
 
           {!Array.isArray(odds) || odds.length === 0 ? (
@@ -509,11 +573,14 @@ export default function HomePage() {
           ) : (
             <>
               <ul className="space-y-4">
-              {upcomingGames.map((game: any) => {
+                {paginatedOdds.map((game: any) => {
                   const teams = [game.home_team, game.away_team];
 
                   return (
-                    <li key={game.id} className="border border-black p-4 rounded-md shadow-sm">
+                    <li
+                      key={game.id}
+                      className="border border-black p-4 rounded-md shadow-sm"
+                    >
                       {/* Matchup Line */}
                       <div className="mb-1">
                         <div className="font-semibold">
@@ -543,18 +610,27 @@ export default function HomePage() {
                       {teams.map((teamName) => {
                         const isHomeTeam = teamName === game.home_team;
 
-                        const avgML = getAveragePrice("h2h", teamName, game.bookmakers || []);
+                        const avgML = getAveragePrice(
+                          "h2h",
+                          teamName,
+                          game.bookmakers || []
+                        );
                         const bestML = game.bookmakers?.[0]?.markets
                           ?.find((m: any) => m.key === "h2h")
                           ?.outcomes?.find((o: any) => o.name === teamName);
 
-                        const avgSpread = getAveragePrice("spreads", teamName, game.bookmakers || []);
+                        const avgSpread = getAveragePrice(
+                          "spreads",
+                          teamName,
+                          game.bookmakers || []
+                        );
                         const bestSpread = game.bookmakers?.[0]?.markets
                           ?.find((m: any) => m.key === "spreads")
                           ?.outcomes?.find((o: any) => o.name === teamName);
 
-                        const totalMarket = game.bookmakers?.[0]?.markets
-                          ?.find((m: any) => m.key === "totals");
+                        const totalMarket = game.bookmakers?.[0]?.markets?.find(
+                          (m: any) => m.key === "totals"
+                        );
 
                         return (
                           <div
@@ -581,7 +657,10 @@ export default function HomePage() {
                                   onClick={() =>
                                     addToParlay(
                                       game.id,
-                                      { ...bestML, bookmaker: game.bookmakers[0]?.title },
+                                      {
+                                        ...bestML,
+                                        bookmaker: game.bookmakers[0]?.title,
+                                      },
                                       "moneyline"
                                     )
                                   }
@@ -601,13 +680,18 @@ export default function HomePage() {
                                   onClick={() =>
                                     addToParlay(
                                       game.id,
-                                      { ...bestSpread, bookmaker: game.bookmakers?.[0]?.title },
+                                      {
+                                        ...bestSpread,
+                                        bookmaker: game.bookmakers?.[0]?.title,
+                                      },
                                       "spread"
                                     )
                                   }
                                   className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs whitespace-nowrap"
                                 >
-                                  {bestSpread.point > 0 ? `+${bestSpread.point}` : bestSpread.point}{" "}
+                                  {bestSpread.point > 0
+                                    ? `+${bestSpread.point}`
+                                    : bestSpread.point}{" "}
                                   {convertDecimalToAmerican(avgSpread)}
                                 </button>
                               ) : (
@@ -639,7 +723,8 @@ export default function HomePage() {
                                             {
                                               ...outcome,
                                               matchup: `${game.home_team} vs ${game.away_team}`,
-                                              bookmaker: game.bookmakers?.[0]?.title,
+                                              bookmaker:
+                                                game.bookmakers?.[0]?.title,
                                             },
                                             "total"
                                           )
@@ -648,10 +733,13 @@ export default function HomePage() {
                                       >
                                         <div className="flex flex-col sm:flex-row items-center justify-center leading-tight gap-x-1">
                                           <span>
-                                            {outcome.name === "Over" ? "O" : "U"} {outcome.point}
+                                            {outcome.name === "Over" ? "O" : "U"}{" "}
+                                            {outcome.point}
                                           </span>
                                           <span>
-                                            {avgTotal ? convertDecimalToAmerican(avgTotal) : "-"}
+                                            {avgTotal
+                                              ? convertDecimalToAmerican(avgTotal)
+                                              : "-"}
                                           </span>
                                         </div>
                                       </button>
@@ -675,7 +763,9 @@ export default function HomePage() {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4 text-xs">
                   <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    onClick={() =>
+                      setCurrentPage((p) => Math.max(1, p - 1))
+                    }
                     disabled={currentPage === 1}
                     className="px-2 py-1 border rounded disabled:opacity-50"
                   >
@@ -687,7 +777,11 @@ export default function HomePage() {
                   </span>
 
                   <button
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() =>
+                      setCurrentPage((p) =>
+                        Math.min(totalPages, p + 1)
+                      )
+                    }
                     disabled={currentPage === totalPages}
                     className="px-2 py-1 border rounded disabled:opacity-50"
                   >
@@ -699,12 +793,6 @@ export default function HomePage() {
           )}
         </div>
 
-
-
-
-
-
-
         {/* Parlay Builder Section */}
         <div className="w-full max-w-3xl mt-10">
           <h2 className="text-lg font-bold mb-4">Your Parlay</h2>
@@ -714,11 +802,19 @@ export default function HomePage() {
             <>
               <ul className="space-y-2 mb-4">
                 {parlay.map((pick, index) => (
-                  <li key={index} className="flex justify-between items-center border border-gray-300 px-4 py-2 rounded-md">
+                  <li
+                    key={index}
+                    className="flex justify-between items-center border border-gray-300 px-4 py-2 rounded-md"
+                  >
                     <span>
-                      {pick.marketType === "moneyline" && `${pick.name} (Moneyline)`}
-                      {pick.marketType === "spread" && `${pick.name} ${pick.point > 0 ? `+${pick.point}` : pick.point} (Spread)`}
-                      {pick.marketType === "total" && `${pick.matchup} ${pick.name} ${pick.point} (Total)`}
+                      {pick.marketType === "moneyline" &&
+                        `${pick.name} (Moneyline)`}
+                      {pick.marketType === "spread" &&
+                        `${pick.name} ${
+                          pick.point > 0 ? `+${pick.point}` : pick.point
+                        } (Spread)`}
+                      {pick.marketType === "total" &&
+                        `${pick.matchup} ${pick.name} ${pick.point} (Total)`}
                     </span>
                     <button
                       className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
@@ -730,7 +826,9 @@ export default function HomePage() {
                 ))}
               </ul>
               <div className="mb-4">
-                <label className="block text-sm font-semibold mb-1">Odds Format</label>
+                <label className="block text-sm font-semibold mb-1">
+                  Odds Format
+                </label>
                 <select
                   value={oddsView}
                   onChange={(e) => setOddsView(e.target.value)}
@@ -742,13 +840,17 @@ export default function HomePage() {
               </div>
               {parlay.length >= 2 && (
                 <div className="text-sm font-semibold mb-4 space-y-2">
-                  <div>Parlay Odds ({oddsView}): {getFormattedOdds()}</div>
+                  <div>
+                    Parlay Odds ({oddsView}): {getFormattedOdds()}
+                  </div>
                   <div className="text-xs text-gray-600">
                     Best Book: {bestBook || "N/A"}
                   </div>
                   <button
                     className="mt-2 text-xs px-3 py-2 bg-black text-white rounded hover:bg-gray-800"
-                    onClick={() => window.open("https://example.com", "_blank")} // replace with real link
+                    onClick={() =>
+                      window.open("https://example.com", "_blank")
+                    } // replace with real link
                   >
                     Click Here to Sign Up to {bestBook}
                   </button>
@@ -764,7 +866,7 @@ export default function HomePage() {
           )}
         </div>
 
-        {/*Parlay Pick Toast Notification*/}
+        {/* Parlay Pick Toast Notification */}
         {showParlayToast && (
           <div className="fixed bottom-4 inset-x-0 flex justify-center z-50 pointer-events-none">
             <div
@@ -783,31 +885,59 @@ export default function HomePage() {
             </div>
           </div>
         )}
-
-
-
-
-
       </main>
+
       <footer className="w-full border-t border-black mt-10 py-10 px-4 bg-white flex justify-center">
         <div className="w-full max-w-screen-lg flex flex-col md:flex-row gap-8">
-
           {/* Disclaimer Section */}
           <aside className="flex-1 flex flex-col items-center md:items-start text-center md:text-left">
-            <h2 className="text-sm font-bold text-gray-500 mb-2">Disclaimer</h2>
+            <h2 className="text-sm font-bold text-gray-500 mb-2">
+              Disclaimer
+            </h2>
             <p className="text-xs text-gray-600">
-              Companies featured on this website may be our partners that compensate us if you sign up through our links. Must be 21+ and physically present in a legal betting state to bet. If you or someone you know has a gambling problem and wants help, call <strong>1-800-GAMBLER</strong>. Please bet responsibly.
+              Companies featured on this website may be our partners that
+              compensate us if you sign up through our links. Must be 21+ and
+              physically present in a legal betting state to bet. If you or
+              someone you know has a gambling problem and wants help, call{" "}
+              <strong>1-800-GAMBLER</strong>. Please bet responsibly.
             </p>
           </aside>
 
           {/* Links Section */}
           <nav className="flex-1 flex flex-col items-center md:items-start text-xs gap-1">
-            <h2 className="text-sm font-bold text-gray-500 mb-2">Quick Links</h2>
-            <Link href="/promotions" className="hover:underline text-gray-700">Promotions</Link>
-            <Link href="/our-picks" className="hover:underline text-gray-700">Our Picks</Link>
-            <Link href="/sign-up" className="hover:underline text-gray-700">Sign Up</Link>
-            <Link href="/disclaimer" className="hover:underline text-gray-700">Disclaimer</Link>
-            <Link href="/terms-and-privacy-policy" className="hover:underline text-gray-700">Terms and Privacy Policy</Link>
+            <h2 className="text-sm font-bold text-gray-500 mb-2">
+              Quick Links
+            </h2>
+            <Link
+              href="/promotions"
+              className="hover:underline text-gray-700"
+            >
+              Promotions
+            </Link>
+            <Link
+              href="/our-picks"
+              className="hover:underline text-gray-700"
+            >
+              Our Picks
+            </Link>
+            <Link
+              href="/sign-up"
+              className="hover:underline text-gray-700"
+            >
+              Sign Up
+            </Link>
+            <Link
+              href="/disclaimer"
+              className="hover:underline text-gray-700"
+            >
+              Disclaimer
+            </Link>
+            <Link
+              href="/terms-and-privacy-policy"
+              className="hover:underline text-gray-700"
+            >
+              Terms and Privacy Policy
+            </Link>
           </nav>
         </div>
       </footer>
