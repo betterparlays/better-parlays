@@ -837,14 +837,6 @@ export default function HomePage() {
                   <div className="text-xs text-gray-600">
                     Best Book: {bestBook || "N/A"}
                   </div>
-                  <button
-                    className="mt-2 text-xs px-3 py-2 bg-black text-white rounded hover:bg-gray-800"
-                    onClick={() =>
-                      window.open("https://example.com", "_blank")
-                    } // replace with real link
-                  >
-                    Click Here to Sign Up to {bestBook}
-                  </button>
                 </div>
               )}
               <button
