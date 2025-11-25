@@ -76,60 +76,37 @@ export default function OurPicks() {
       {/* Picks Content */}
       <div className="p-8 space-y-8">
         <h1 className="text-2xl font-bold">Our Picks</h1>
-        <p className="text-sm text-gray-700 mb-6">We&apos;re absolutely loving these parlays that are featured on the <strong>Sportsbook Parlay Place</strong></p>
+        <p className="text-sm text-gray-700 mb-6">We&apos;re absolutely loving these Thanksgiving Day parlays!</p>
 
 
         <div className="flex flex-col md:flex-row gap-6">
           {/* First Parlay Box */}
           <section className="border border-black p-4 rounded-md shadow-sm w-full md:w-1/2">
-            <h2 className="text-xl font-semibold mb-4">Highlighted 6-Leg Parlay</h2>
+            <h2 className="text-xl font-semibold mb-4">Featured Early Game Parlay</h2>
             <ul className="list-disc list-inside text-sm space-y-2">
-              <p><strong>Ronald Acuna Jr.</strong> to record 2+ total bases</p>
-              <p><strong>Austin Riley</strong> to record 2+ total bases</p>
-              <p><strong>Trea Turner</strong> to record 2+ total bases</p>
-              <p><strong>Kyle Schwarber</strong> to record 2+ total bases</p>
-              <p><strong>Nick Castellanos</strong> to record 2+ total bases</p>
-              <p><strong>Matt Olson</strong> to record 2+ total bases</p>
+              <p><strong>Jared Goff</strong> Over 225 Passing Yards</p>
+              <p><strong>Amon-Ra St.Brown</strong> Over 5 Receptions</p>
+              <p><strong>David Montgomery</strong> Anytime Touchdown Scorer</p>
+              <p><strong>Jordan Love</strong> Over 2 Passing Touchdowns</p>
+              <p><strong>Jahmyr Gibbs</strong> Over 69 Rushing Yards</p>
             </ul>
             <p className="mt-4 text-sm font-semibold">
-              Total Odds: <span className="text-green-600">+3789</span>
+              <span className="text-green-600">Use our search feature to find the best odds!</span>
             </p>
-            <p className="text-sm text-gray-600">A $10 wager would return $378.96</p>
-            <div className="mt-6">
-              <a
-                href="https://www.example.com"
-                target="_blank"
-                rel="noopener noreferrer nofollow sponsored"
-                className="inline-block px-4 py-2 text-sm bg-black text-white rounded hover:bg-gray-800"
-              >
-                Click here to place this bet on Sportsbook
-              </a>
-            </div>
           </section>
 
           {/* Second Parlay Box */}
           <section className="border border-black p-4 rounded-md shadow-sm w-full md:w-1/2">
-            <h2 className="text-xl font-semibold mb-4">Featured RBI & Hit Parlay</h2>
+            <h2 className="text-xl font-semibold mb-4">Turkey Time Parlay (TTP)</h2>
             <ul className="list-disc list-inside text-sm space-y-2">
-              <p><strong>Christian Moore</strong> to record an RBI</p>
-              <p><strong>Jo Adell</strong> to record a hit</p>
-              <p><strong>James Wood</strong> to record an RBI</p>
-              <p><strong>C.J. Abrams</strong> to record a hit</p>
+              <p><strong>Kansas City Chiefs</strong> -3</p>
+              <p><strong>Dak Prescott</strong> Under 248 Passing Yards</p>
+              <p><strong>Patrick Mahomes</strong> Over 2 Passing Touchdowns</p>
+              <p><strong>George Pickens</strong> Under 6 Receptions</p>
             </ul>
             <p className="mt-4 text-sm font-semibold">
-              Total Odds: <span className="text-green-600">+1357</span>
+              <span className="text-green-600">Use our search feature to find the best odds!</span>
             </p>
-            <p className="text-sm text-gray-600">A $10 wager would return $135.77</p>
-            <div className="mt-6">
-              <a
-                href="https://www.example.com"
-                target="_blank"
-                rel="noopener noreferrer nofollow sponsored"
-                className="inline-block px-4 py-2 text-sm bg-black text-white rounded hover:bg-gray-800"
-              >
-                Click here to place this bet on Sportsbook
-              </a>
-            </div>
           </section>
         </div>
 

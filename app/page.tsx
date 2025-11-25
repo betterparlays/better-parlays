@@ -76,15 +76,9 @@ export default function HomePage() {
 
   // Scroll to games section when page changes
   useEffect(() => {
-    if (gamesSectionRef.current) {
-      gamesSectionRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    } else {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, [currentPage]);
+  
 
   // Auto-hide toast
   useEffect(() => {
