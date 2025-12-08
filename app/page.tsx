@@ -73,6 +73,266 @@ export default function HomePage() {
   const gamesSectionRef = useRef<HTMLDivElement | null>(null);
   const [toastVariant, setToastVariant] = useState<"add" | "delete">("add");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [searchResult, setSearchResult] = useState<any | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  type OddsSuccess = {
+    event_id: string;
+    success: true;
+    data: any;
+  };
+  
+  type OddsFailure = {
+    event_id: string;
+    success: false;
+    error: string;
+  };
+  
+  type OddsEntry = OddsSuccess | OddsFailure;
+  
+
+  // Function to handle when a user submits a search
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSearchLoading(true);
+    setSearchError(null);
+    setSearchResult(null);
+  
+    const formData = new FormData(e.currentTarget);
+    const query = formData.get("search")?.toString().trim() || "";
+  
+    if (!query) {
+      setSearchLoading(false);
+      return;
+    }
+  
+    // Use your selected league; fall back to NFL if needed
+    const leagueParam =
+      selectedLeague && selectedLeague !== "Select League"
+        ? selectedLeague
+        : "NFL";
+  
+    // Map to slug for the /{league}/events and local odds endpoint
+    const leagueSlug =
+      mainLeagueMap[leagueParam] ?? mainLeagueMap["Select League"];
+  
+    const searchUrl = `https://api.betterparlays.com/search/${leagueParam}?query=${encodeURIComponent(
+      query
+    )}`;
+    const eventsUrl = `https://api.betterparlays.com/${leagueSlug}/events`;
+  
+    try {
+      // ---- 1️⃣ Fire SEARCH + EVENTS in parallel ----
+      const [searchSettled, eventsSettled] = await Promise.allSettled([
+        fetch(searchUrl),
+        fetch(eventsUrl),
+      ]);
+  
+      // ---- 2️⃣ Handle SEARCH (controls UI) ----
+      if (searchSettled.status !== "fulfilled") {
+        throw new Error(
+          `Search request failed to fetch: ${String(searchSettled.reason)}`
+        );
+      }
+  
+      const searchRes = searchSettled.value;
+      if (!searchRes.ok) {
+        throw new Error(`Search request failed: ${searchRes.status}`);
+      }
+  
+      const searchJson = await searchRes.json();
+  
+      console.log("🔍 Search API response", {
+        url: searchUrl,
+        leagueParam,
+        leagueSlug,
+        query,
+        data: searchJson,
+      });
+  
+      // keep your existing UI behavior
+      setSearchResult(searchJson);
+  
+      // Extract market_match & match_type from search response
+      const marketMatch =
+        searchJson?.data?.data?.market_match ?? searchJson?.data?.market_match;
+  
+      const matchType =
+        searchJson?.data?.data?.match_type ?? searchJson?.data?.match_type;
+  
+      // ---- 3️⃣ Handle EVENTS (console + later odds fetch) ----
+      let eventIds: string[] = [];
+  
+      if (eventsSettled.status === "fulfilled") {
+        const eventsRes = eventsSettled.value;
+  
+        if (!eventsRes.ok) {
+          console.error(
+            `Events request failed for ${leagueSlug}:`,
+            eventsRes.status
+          );
+        } else {
+          const eventsJson = await eventsRes.json();
+  
+          console.log("📡 Events API response", {
+            url: eventsUrl,
+            leagueParam,
+            leagueSlug,
+            query,
+            data: eventsJson,
+          });
+  
+          const eventsData = eventsJson?.data?.data ?? eventsJson?.data;
+          const rawEventIds = eventsData?.event_id;
+  
+          if (Array.isArray(rawEventIds)) {
+            eventIds = rawEventIds;
+          }
+        }
+      } else {
+        console.error("Events request failed to fetch:", eventsSettled.reason);
+      }
+  
+      // ---- 4️⃣ Local odds calls (only if we have enough info) ----
+      if (marketMatch && eventIds.length > 0) {
+        const eventIdsToFetch = eventIds; // all event_ids
+  
+        const oddsPromises: Promise<OddsEntry>[] = eventIdsToFetch.map(
+          (eventId) => {
+            const oddsUrl = `http://localhost:8080/${leagueSlug}/${eventId}/odds?market=${encodeURIComponent(
+              marketMatch
+            )}`;
+  
+            return fetch(oddsUrl)
+              .then(async (res) => {
+                if (!res.ok) {
+                  throw new Error(
+                    `Odds request failed (${res.status}) for event ${eventId}`
+                  );
+                }
+  
+                const oddsJson = await res.json();
+                const successEntry: OddsSuccess = {
+                  event_id: eventId,
+                  success: true,
+                  data: oddsJson,
+                };
+                return successEntry;
+              })
+              .catch((err) => {
+                const failureEntry: OddsFailure = {
+                  event_id: eventId,
+                  success: false,
+                  error: String(err),
+                };
+                return failureEntry;
+              });
+          }
+        );
+  
+        // Wait for all odds calls to complete and merge into one structure
+        const mergedOdds: OddsEntry[] = await Promise.all(oddsPromises);
+  
+        const combinedOddsJson = {
+          leagueSlug,
+          marketMatch,
+          matchType,
+          totalEventsQueried: mergedOdds.length,
+          odds: mergedOdds,
+        };
+  
+        console.log("🎯 Combined Local Odds API Response:", combinedOddsJson);
+  
+        // ---- 5️⃣ Find the specific event matching match_type ----
+        if (matchType) {
+          // 5a. Try to match by outcome.name or outcome.description
+          const matchedEventByOutcome = mergedOdds.find(
+            (entry): entry is OddsSuccess => {
+              if (!entry.success) return false;
+  
+              const bookmakers = entry.data?.bookmakers ?? [];
+              return bookmakers.some((bookmaker: any) =>
+                (bookmaker.markets ?? []).some((market: any) =>
+                  // optional: ensure we match the same market as marketMatch
+                  (market.key === marketMatch || !marketMatch) &&
+                  (market.outcomes ?? []).some((outcome: any) => {
+                    const nameMatches = outcome?.name === matchType;
+                    const descriptionMatches =
+                      outcome?.description === matchType;
+  
+                    return nameMatches || descriptionMatches;
+                  })
+                )
+              );
+            }
+          );
+  
+          let matchedEventEntry: OddsSuccess | undefined = matchedEventByOutcome;
+          let matchSource: "outcome" | "teams" | "none" = "none";
+  
+          if (matchedEventByOutcome) {
+            matchSource = "outcome";
+          } else {
+            // 5b. Fallback: match by home_team / away_team
+            const matchedEventByTeams = mergedOdds.find(
+              (entry): entry is OddsSuccess => {
+                if (!entry.success) return false;
+  
+                const home = entry.data?.home_team;
+                const away = entry.data?.away_team;
+  
+                return home === matchType || away === matchType;
+              }
+            );
+  
+            if (matchedEventByTeams) {
+              matchedEventEntry = matchedEventByTeams;
+              matchSource = "teams";
+            }
+          }
+  
+          if (matchedEventEntry) {
+            console.log(
+              "📌 Matched Event for match_type from Search API:",
+              {
+                matchType,
+                matchSource, // "outcome" or "teams"
+                event: matchedEventEntry,
+              }
+            );
+          } else {
+            console.warn(
+              "No event found in odds matching match_type in outcomes or team names",
+              { matchType }
+            );
+          }
+        } else {
+          console.warn(
+            "No match_type from Search API; skipping event match lookup"
+          );
+        }
+      } else {
+        console.warn("Skipping odds fetch – missing marketMatch or eventIds", {
+          marketMatch,
+          eventIds,
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      setSearchError("Search failed. Please try again.");
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+  
+  
+  
+  
+
+
+
+
 
   // Scroll to games section when page changes
   useEffect(() => {
@@ -515,30 +775,59 @@ export default function HomePage() {
               </div>
             </div>
 
-            <input
-              type="text"
-              placeholder="Search"
-              className="min-w-0 flex-grow px-4 py-3 bg-white text-black text-sm focus:outline-none rounded-r-full"
-            />
+            {/* Search Input + clickable icon */}
+            <form
+              onSubmit={handleSubmit}
+              className="flex-1 min-w-0 relative"   // <-- make form relative
+            >
+              <input
+                type="text"
+                name="search"
+                placeholder="Search"
+                className="w-full px-4 py-3 pr-10 bg-white text-black text-sm focus:outline-none rounded-r-full"
+              />
 
-            <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex-shrink-0">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 text-black"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+              {/* submit button with icon */}
+              <button
+                type="submit"
+                className="absolute right-4 top-1/2 -translate-y-1/2 flex-shrink-0 focus:outline-none"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-4.35-4.35M16.65 10.65A6 6 0 1110.65 4a6 6 0 016 6.65z"
-                />
-              </svg>
-            </div>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 text-black"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-4.35-4.35M16.65 10.65A6 6 0 1110.65 4a6 6 0 016 6.65z"
+                  />
+                </svg>
+              </button>
+            </form>
           </div>
         </div>
+
+
+  {/* 🔽 NEW: Search result dump under the bar */}
+  <div className="w-full max-w-3xl mx-auto mt-4">
+    {searchLoading && (
+      <div className="text-xs text-gray-500">Searching…</div>
+    )}
+
+    {searchError && (
+      <div className="text-xs text-red-600">{searchError}</div>
+    )}
+
+    {searchResult && (
+      <pre className="text-xs bg-gray-50 border border-gray-200 rounded p-3 overflow-x-auto">
+        {JSON.stringify(searchResult, null, 2)}
+      </pre>
+    )}
+  </div>
 
         {/* Upcoming Games Section */}
         <div ref={gamesSectionRef} className="w-full max-w-3xl mt-10">
@@ -547,8 +836,8 @@ export default function HomePage() {
             {selectedLeague === "Select League" ? "" : `${selectedLeague} `}Games
           </h2>
           <p className="text-xs text-gray-500 mb-4">
-            Displayed singles odds are averaged and may not reflect the most
-            current odds
+            Displayed singles odds are averaged and may not reflect the most current
+            odds
           </p>
 
           {!Array.isArray(odds) || odds.length === 0 ? (
@@ -708,8 +997,7 @@ export default function HomePage() {
                                             {
                                               ...outcome,
                                               matchup: `${game.home_team} vs ${game.away_team}`,
-                                              bookmaker:
-                                                game.bookmakers?.[0]?.title,
+                                              bookmaker: game.bookmakers?.[0]?.title,
                                             },
                                             "total"
                                           )
@@ -748,9 +1036,7 @@ export default function HomePage() {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4 text-xs">
                   <button
-                    onClick={() =>
-                      setCurrentPage((p) => Math.max(1, p - 1))
-                    }
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
                     className="px-2 py-1 border rounded disabled:opacity-50"
                   >
@@ -763,9 +1049,7 @@ export default function HomePage() {
 
                   <button
                     onClick={() =>
-                      setCurrentPage((p) =>
-                        Math.min(totalPages, p + 1)
-                      )
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
                     }
                     disabled={currentPage === totalPages}
                     className="px-2 py-1 border rounded disabled:opacity-50"
@@ -825,9 +1109,7 @@ export default function HomePage() {
               </div>
               {parlay.length >= 2 && (
                 <div className="text-sm font-semibold mb-4 space-y-2">
-                  <div>
-                    Parlay Odds ({oddsView}): {getFormattedOdds()}
-                  </div>
+                  <div>Parlay Odds ({oddsView}): {getFormattedOdds()}</div>
                   <div className="text-xs text-gray-600">
                     Best Book: {bestBook || "N/A"}
                   </div>
@@ -863,6 +1145,7 @@ export default function HomePage() {
           </div>
         )}
       </main>
+
 
       <footer className="w-full border-t border-black mt-10 py-10 px-4 bg-white flex justify-center">
         <div className="w-full max-w-screen-lg flex flex-col md:flex-row gap-8">
