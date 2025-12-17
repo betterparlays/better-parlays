@@ -82,67 +82,71 @@ export default function HomePage() {
     success: true;
     data: any;
   };
-  
+
   type OddsFailure = {
     event_id: string;
     success: false;
     error: string;
   };
-  
-  type OddsEntry = OddsSuccess | OddsFailure;
-  
 
-  // Function to handle when a user submits a search
+  type OddsEntry = OddsSuccess | OddsFailure;
+
+  const [searchMatch, setSearchMatch] = useState<OddsSuccess | null>(null);
+  const [searchMatchType, setSearchMatchType] = useState<string | null>(null);
+  const [searchMatchSource, setSearchMatchSource] = useState<
+    "outcome" | "teams" | "none" | null
+  >(null);
+  const [searchMarketKey, setSearchMarketKey] = useState<string | null>(null);
+
+  // Submit search
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSearchLoading(true);
     setSearchError(null);
     setSearchResult(null);
-  
+    setSearchMatch(null);
+    setSearchMatchType(null);
+    setSearchMatchSource(null);
+    setSearchMarketKey(null);
+
     const formData = new FormData(e.currentTarget);
     const query = formData.get("search")?.toString().trim() || "";
-  
     if (!query) {
       setSearchLoading(false);
       return;
     }
-  
-    // Use your selected league; fall back to NFL if needed
+
     const leagueParam =
       selectedLeague && selectedLeague !== "Select League"
         ? selectedLeague
         : "NFL";
-  
-    // Map to slug for the /{league}/events and local odds endpoint
+
     const leagueSlug =
       mainLeagueMap[leagueParam] ?? mainLeagueMap["Select League"];
-  
+
     const searchUrl = `https://api.betterparlays.com/search/${leagueParam}?query=${encodeURIComponent(
       query
     )}`;
     const eventsUrl = `https://api.betterparlays.com/${leagueSlug}/events`;
-  
+
     try {
-      // ---- 1️⃣ Fire SEARCH + EVENTS in parallel ----
       const [searchSettled, eventsSettled] = await Promise.allSettled([
         fetch(searchUrl),
         fetch(eventsUrl),
       ]);
-  
-      // ---- 2️⃣ Handle SEARCH (controls UI) ----
+
       if (searchSettled.status !== "fulfilled") {
         throw new Error(
           `Search request failed to fetch: ${String(searchSettled.reason)}`
         );
       }
-  
+
       const searchRes = searchSettled.value;
       if (!searchRes.ok) {
         throw new Error(`Search request failed: ${searchRes.status}`);
       }
-  
+
       const searchJson = await searchRes.json();
-  
       console.log("🔍 Search API response", {
         url: searchUrl,
         leagueParam,
@@ -150,23 +154,21 @@ export default function HomePage() {
         query,
         data: searchJson,
       });
-  
-      // keep your existing UI behavior
+
       setSearchResult(searchJson);
-  
-      // Extract market_match & match_type from search response
+
       const marketMatch =
         searchJson?.data?.data?.market_match ?? searchJson?.data?.market_match;
-  
       const matchType =
         searchJson?.data?.data?.match_type ?? searchJson?.data?.match_type;
-  
-      // ---- 3️⃣ Handle EVENTS (console + later odds fetch) ----
+
+      setSearchMarketKey(marketMatch || null);
+      setSearchMatchType(matchType || null);
+
+      // Events → event ids
       let eventIds: string[] = [];
-  
       if (eventsSettled.status === "fulfilled") {
         const eventsRes = eventsSettled.value;
-  
         if (!eventsRes.ok) {
           console.error(
             `Events request failed for ${leagueSlug}:`,
@@ -174,7 +176,6 @@ export default function HomePage() {
           );
         } else {
           const eventsJson = await eventsRes.json();
-  
           console.log("📡 Events API response", {
             url: eventsUrl,
             leagueParam,
@@ -182,10 +183,9 @@ export default function HomePage() {
             query,
             data: eventsJson,
           });
-  
+
           const eventsData = eventsJson?.data?.data ?? eventsJson?.data;
           const rawEventIds = eventsData?.event_id;
-  
           if (Array.isArray(rawEventIds)) {
             eventIds = rawEventIds;
           }
@@ -193,124 +193,103 @@ export default function HomePage() {
       } else {
         console.error("Events request failed to fetch:", eventsSettled.reason);
       }
-  
-      // ---- 4️⃣ Local odds calls (only if we have enough info) ----
+
       if (marketMatch && eventIds.length > 0) {
-        const eventIdsToFetch = eventIds; // all event_ids
-  
-        const oddsPromises: Promise<OddsEntry>[] = eventIdsToFetch.map(
-          (eventId) => {
-            const oddsUrl = `http://localhost:8080/${leagueSlug}/${eventId}/odds?market=${encodeURIComponent(
-              marketMatch
-            )}`;
-  
-            return fetch(oddsUrl)
-              .then(async (res) => {
-                if (!res.ok) {
-                  throw new Error(
-                    `Odds request failed (${res.status}) for event ${eventId}`
-                  );
-                }
-  
-                const oddsJson = await res.json();
-                const successEntry: OddsSuccess = {
-                  event_id: eventId,
-                  success: true,
-                  data: oddsJson,
-                };
-                return successEntry;
-              })
-              .catch((err) => {
-                const failureEntry: OddsFailure = {
-                  event_id: eventId,
-                  success: false,
-                  error: String(err),
-                };
-                return failureEntry;
-              });
-          }
-        );
-  
-        // Wait for all odds calls to complete and merge into one structure
+        const oddsPromises: Promise<OddsEntry>[] = eventIds.map((eventId) => {
+          const oddsUrl = `http://localhost:8080/${leagueSlug}/${eventId}/odds?market=${encodeURIComponent(
+            marketMatch
+          )}`;
+
+          return fetch(oddsUrl)
+            .then(async (res) => {
+              if (!res.ok) {
+                throw new Error(
+                  `Odds request failed (${res.status}) for event ${eventId}`
+                );
+              }
+              const oddsJson = await res.json();
+              const successEntry: OddsSuccess = {
+                event_id: eventId,
+                success: true,
+                data: oddsJson,
+              };
+              return successEntry;
+            })
+            .catch((err) => {
+              const failureEntry: OddsFailure = {
+                event_id: eventId,
+                success: false,
+                error: String(err),
+              };
+              return failureEntry;
+            });
+        });
+
         const mergedOdds: OddsEntry[] = await Promise.all(oddsPromises);
-  
-        const combinedOddsJson = {
+
+        console.log("🎯 Combined Local Odds API Response:", {
           leagueSlug,
           marketMatch,
           matchType,
           totalEventsQueried: mergedOdds.length,
           odds: mergedOdds,
-        };
-  
-        console.log("🎯 Combined Local Odds API Response:", combinedOddsJson);
-  
-        // ---- 5️⃣ Find the specific event matching match_type ----
+        });
+
         if (matchType) {
-          // 5a. Try to match by outcome.name or outcome.description
           const matchedEventByOutcome = mergedOdds.find(
             (entry): entry is OddsSuccess => {
               if (!entry.success) return false;
-  
               const bookmakers = entry.data?.bookmakers ?? [];
               return bookmakers.some((bookmaker: any) =>
                 (bookmaker.markets ?? []).some((market: any) =>
-                  // optional: ensure we match the same market as marketMatch
                   (market.key === marketMatch || !marketMatch) &&
                   (market.outcomes ?? []).some((outcome: any) => {
                     const nameMatches = outcome?.name === matchType;
                     const descriptionMatches =
                       outcome?.description === matchType;
-  
                     return nameMatches || descriptionMatches;
                   })
                 )
               );
             }
           );
-  
+
           let matchedEventEntry: OddsSuccess | undefined = matchedEventByOutcome;
           let matchSource: "outcome" | "teams" | "none" = "none";
-  
+
           if (matchedEventByOutcome) {
             matchSource = "outcome";
           } else {
-            // 5b. Fallback: match by home_team / away_team
             const matchedEventByTeams = mergedOdds.find(
               (entry): entry is OddsSuccess => {
                 if (!entry.success) return false;
-  
                 const home = entry.data?.home_team;
                 const away = entry.data?.away_team;
-  
                 return home === matchType || away === matchType;
               }
             );
-  
+
             if (matchedEventByTeams) {
               matchedEventEntry = matchedEventByTeams;
               matchSource = "teams";
             }
           }
-  
+
           if (matchedEventEntry) {
-            console.log(
-              "📌 Matched Event for match_type from Search API:",
-              {
-                matchType,
-                matchSource, // "outcome" or "teams"
-                event: matchedEventEntry,
-              }
-            );
+            console.log("📌 Matched Event for match_type from Search API:", {
+              matchType,
+              matchSource,
+              event: matchedEventEntry,
+            });
+            setSearchMatch(matchedEventEntry);
+            setSearchMatchSource(matchSource);
           } else {
-            console.warn(
-              "No event found in odds matching match_type in outcomes or team names",
-              { matchType }
-            );
+            console.warn("No event found matching match_type", { matchType });
+            setSearchMatch(null);
+            setSearchMatchSource("none");
           }
         } else {
-          console.warn(
-            "No match_type from Search API; skipping event match lookup"
-          );
+          console.warn("No match_type from Search API; skipping match lookup");
         }
       } else {
         console.warn("Skipping odds fetch – missing marketMatch or eventIds", {
@@ -321,37 +300,25 @@ export default function HomePage() {
     } catch (err) {
       console.error(err);
       setSearchError("Search failed. Please try again.");
+      setSearchMarketKey(null);
     } finally {
       setSearchLoading(false);
     }
   }
-  
-  
-  
-  
 
-
-
-
-
-  // Scroll to games section when page changes
+  // Scroll to top on page change
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [currentPage]);
-  
 
   // Auto-hide toast
   useEffect(() => {
     if (!showParlayToast) return;
-
-    const timer = setTimeout(() => {
-      setShowParlayToast(false);
-    }, 3000);
-
+    const timer = setTimeout(() => setShowParlayToast(false), 3000);
     return () => clearTimeout(timer);
   }, [showParlayToast, toastId]);
 
-  // Reset page to 1 when league changes
+  // Reset page on league change
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedLeague]);
@@ -359,12 +326,12 @@ export default function HomePage() {
   // Measure select width
   useEffect(() => {
     if (textRef.current) {
-      const width = textRef.current.offsetWidth + 32; // padding buffer
+      const width = textRef.current.offsetWidth + 32;
       setSelectWidth(width);
     }
   }, [selectedLeague]);
 
-  // Fetch odds and strip out live/already-started games at the source
+  // Fetch odds for upcoming games
   useEffect(() => {
     fetch(`/api/odds?sport=${mainLeagueMap[selectedLeague]}`)
       .then((res) => res.json())
@@ -375,7 +342,7 @@ export default function HomePage() {
         const now = Date.now();
         const futureGames = allGames.filter((game: any) => {
           const start = new Date(game.commence_time).getTime();
-          return start > now; // only future games
+          return start > now;
         });
 
         setOdds(futureGames);
@@ -389,7 +356,6 @@ export default function HomePage() {
       });
   }, [selectedLeague]);
 
-  // Pagination derived from odds (which already excludes live games)
   const itemsPerPage = PAGE_SIZE;
   const totalPages = Math.ceil(odds.length / itemsPerPage);
   const paginatedOdds = odds.slice(
@@ -397,7 +363,7 @@ export default function HomePage() {
     currentPage * itemsPerPage
   );
 
-  // Clamp currentPage if odds length changes
+  // Clamp page when odds length changes
   useEffect(() => {
     if (totalPages === 0 && currentPage !== 1) {
       setCurrentPage(1);
@@ -406,7 +372,7 @@ export default function HomePage() {
     }
   }, [totalPages, currentPage]);
 
-  // Fetch records for teams on the current page
+  // Fetch team records
   useEffect(() => {
     const startIndex = (currentPage - 1) * PAGE_SIZE;
     const currentGames = odds.slice(startIndex, startIndex + PAGE_SIZE);
@@ -419,7 +385,6 @@ export default function HomePage() {
 
     const fetchRecords = async () => {
       const newRecords: any = {};
-
       for (const team of uniqueTeams) {
         try {
           const res = await fetch(
@@ -441,34 +406,31 @@ export default function HomePage() {
           console.error(`Fetch error for ${team}:`, err);
         }
       }
-
       setTeamRecords((prev) => ({ ...prev, ...newRecords }));
     };
 
     fetchRecords();
   }, [selectedLeague, currentPage, odds]);
 
-  const ResponsiveTeamName = ({ name }: { name: string }) => {
-    return (
-      <div
-        className="font-medium text-[clamp(0.75rem,3vw,1rem)] leading-snug break-words relative z-10"
-        style={{
-          position: "relative",
-          zIndex: 10,
-          wordBreak: "keep-all",
-          overflowWrap: "normal",
-          hyphens: "none",
-          maxHeight: "calc(1.25em * 3)",
-          display: "-webkit-box",
-          WebkitBoxOrient: "vertical",
-          WebkitLineClamp: 3,
-          overflow: "visible",
-        }}
-      >
-        {name}
-      </div>
-    );
-  };
+  const ResponsiveTeamName = ({ name }: { name: string }) => (
+    <div
+      className="font-medium text-[clamp(0.75rem,3vw,1rem)] leading-snug break-words relative z-10"
+      style={{
+        position: "relative",
+        zIndex: 10,
+        wordBreak: "keep-all",
+        overflowWrap: "normal",
+        hyphens: "none",
+        maxHeight: "calc(1.25em * 3)",
+        display: "-webkit-box",
+        WebkitBoxOrient: "vertical",
+        WebkitLineClamp: 3,
+        overflow: "visible",
+      }}
+    >
+      {name}
+    </div>
+  );
 
   const addToParlay = (gameId: string, outcome: any, marketType: string) => {
     setParlay((prev) => {
@@ -484,20 +446,16 @@ export default function HomePage() {
 
       if (updated.length >= 2) {
         const bookOdds: { [bookmaker: string]: number } = {};
-
         updated.forEach((pick) => {
           if (pick.price && pick.bookmaker) {
             if (!bookOdds[pick.bookmaker]) bookOdds[pick.bookmaker] = 1;
             bookOdds[pick.bookmaker] *= Number(pick.price);
           }
         });
-
-        const bestBook = Object.entries(bookOdds).sort(
+        const bestBookEntry = Object.entries(bookOdds).sort(
           (a, b) => b[1] - a[1]
-        )[0]?.[0];
-        if (bestBook) {
-          setBestBook(bestBook);
-        }
+        )[0];
+        if (bestBookEntry) setBestBook(bestBookEntry[0]);
       }
 
       const message =
@@ -509,6 +467,10 @@ export default function HomePage() {
             } Added`
           : marketType === "total"
           ? `${outcome.matchup} ${outcome.name} Added`
+          : marketType === "player_prop"
+          ? `${outcome.player} ${outcome.name} ${
+              outcome.point ?? ""
+            } ${outcome.stat ?? ""} Added`
           : "Pick Added to Your Parlay Builder";
 
       setToastVariant("add");
@@ -523,25 +485,22 @@ export default function HomePage() {
   const removeFromParlay = (indexToRemove: number) => {
     setParlay((prev) => {
       const removedPick = prev[indexToRemove];
-
       const updated = prev.filter((_, index) => index !== indexToRemove);
 
       if (updated.length < 2) {
         setBestBook("");
       } else {
         const bookOdds: { [bookmaker: string]: number } = {};
-
         updated.forEach((pick) => {
           if (pick.price && pick.bookmaker) {
             if (!bookOdds[pick.bookmaker]) bookOdds[pick.bookmaker] = 1;
             bookOdds[pick.bookmaker] *= Number(pick.price);
           }
         });
-
-        const newBestBook = Object.entries(bookOdds).sort(
+        const bestBookEntry = Object.entries(bookOdds).sort(
           (a, b) => b[1] - a[1]
-        )[0]?.[0];
-        setBestBook(newBestBook || "");
+        )[0];
+        setBestBook(bestBookEntry?.[0] || "");
       }
 
       if (removedPick) {
@@ -556,6 +515,10 @@ export default function HomePage() {
               } Removed`
             : removedPick.marketType === "total"
             ? `${removedPick.matchup} ${removedPick.name} Removed`
+            : removedPick.marketType === "player_prop"
+            ? `${removedPick.player} ${removedPick.name} ${
+                removedPick.point ?? ""
+              } ${removedPick.stat ?? ""} Removed`
             : "Pick Removed From Your Parlay Builder";
 
         setToastVariant("delete");
@@ -585,8 +548,8 @@ export default function HomePage() {
     const decimalOdds = calculateParlayOddsDecimal();
     if (decimalOdds === 0) return "0.00";
     if (oddsView === "Decimal") return decimalOdds.toFixed(2);
+    const profit = decimalOdds - 1;
     if (oddsView === "American") {
-      const profit = decimalOdds - 1;
       return profit >= 1
         ? `+${(profit * 100).toFixed(0)}`
         : `-${(100 / profit).toFixed(0)}`;
@@ -604,25 +567,434 @@ export default function HomePage() {
 
   const getAveragePrice = (
     marketKey: string,
-    teamName: string,
+    outcomeName: string,
     bookmakers: any[]
   ) => {
     const prices: number[] = [];
-
     bookmakers.forEach((book: any) => {
       const market = book.markets?.find((m: any) => m.key === marketKey);
-      const outcome = market?.outcomes?.find((o: any) => o.name === teamName);
-      if (outcome && outcome.price) {
+      const outcome = market?.outcomes?.find(
+        (o: any) => o.name === outcomeName
+      );
+      if (outcome && outcome.price != null) {
         prices.push(Number(outcome.price));
       }
     });
-
     if (prices.length === 0) return null;
-
-    const average =
-      prices.reduce((acc, val) => acc + val, 0) / prices.length;
-    return average;
+    return prices.reduce((acc, val) => acc + val, 0) / prices.length;
   };
+
+  // NEW: average point helper
+  const getAveragePoint = (
+    marketKey: string,
+    outcomeName: string,
+    bookmakers: any[]
+  ) => {
+    const points: number[] = [];
+    bookmakers.forEach((book: any) => {
+      const market = book.markets?.find((m: any) => m.key === marketKey);
+      const outcome = market?.outcomes?.find(
+        (o: any) => o.name === outcomeName
+      );
+      if (outcome && outcome.point != null) {
+        points.push(Number(outcome.point));
+      }
+    });
+    if (points.length === 0) return null;
+    return points.reduce((acc, val) => acc + val, 0) / points.length;
+  };
+
+    // ---------- NEW: schema-driven market rendering helpers ----------
+
+    type RawOutcome = {
+      name?: string;
+      price?: number;
+      point?: number;
+      description?: string;
+    };
+  
+    type OutcomeVariant = "moneyline" | "total" | "playerProp" | "unknown";
+  
+    const inferOutcomeVariant = (outcomes: RawOutcome[]): OutcomeVariant => {
+      const hasDescription = outcomes.some((o) => o.description != null);
+      const hasPoint = outcomes.some((o) => o.point != null);
+  
+      if (hasDescription && hasPoint) return "playerProp";
+      if (!hasDescription && hasPoint) return "total";
+      if (!hasDescription && !hasPoint) return "moneyline";
+      return "unknown";
+    };
+  
+    const collectMarketOutcomes = (bookmakers: any[], marketKey: string): RawOutcome[] => {
+      const all: RawOutcome[] = [];
+      (bookmakers ?? []).forEach((book: any) => {
+        const market = (book.markets ?? []).find((m: any) => m.key === marketKey);
+        (market?.outcomes ?? []).forEach((o: any) => all.push(o));
+      });
+      return all;
+    };
+  
+    const humanizeMarketKey = (marketKey: string) =>
+      marketKey
+        .replace(/^player_/, "player ")
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+  
+    const aggregateOutcomes = (bookmakers: any[], marketKey: string) => {
+      const all = collectMarketOutcomes(bookmakers, marketKey);
+      const variant = inferOutcomeVariant(all);
+  
+      const keyFor = (o: RawOutcome) => {
+        const n = o.name ?? "";
+        const p = o.point != null ? String(o.point) : "";
+        const d = o.description ?? "";
+        if (variant === "playerProp") return `${d}__${n}__${p}`;
+        if (variant === "total") return `${n}__${p}`;
+        if (variant === "moneyline") return `${n}`;
+        return `${d}__${n}__${p}`;
+      };
+  
+      const buckets = new Map<
+        string,
+        { sample: RawOutcome; prices: number[]; points: number[] }
+      >();
+  
+      all.forEach((o) => {
+        if (o?.price == null || o?.name == null) return;
+        const k = keyFor(o);
+        if (!buckets.has(k)) buckets.set(k, { sample: o, prices: [], points: [] });
+        buckets.get(k)!.prices.push(Number(o.price));
+        if (o.point != null) buckets.get(k)!.points.push(Number(o.point));
+      });
+  
+      const avg = (arr: number[]) =>
+        arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+  
+      const rows = Array.from(buckets.values()).map(({ sample, prices, points }) => ({
+        name: sample.name ?? "",
+        description: sample.description ?? null,
+        point: points.length ? avg(points) : null,
+        price: avg(prices),
+      }));
+  
+      rows.sort((a, b) => {
+        const da = a.description ?? "";
+        const db = b.description ?? "";
+        if (da !== db) return da.localeCompare(db);
+        return a.name.localeCompare(b.name);
+      });
+  
+      return { variant, rows };
+    };
+  
+    const marketTypeFromVariant = (variant: OutcomeVariant) => {
+      if (variant === "playerProp") return "player_prop";
+      if (variant === "total") return "total";
+      return "moneyline"; // your 3 schemas include h2h and totals + player props
+    };
+  
+    // NEW: generic search match card (schema-driven)
+    const renderGenericSearchMarketCard = (
+      game: any,
+      marketKey: string,
+      matchType?: string | null,
+      matchSource?: "outcome" | "teams" | "none" | null
+    ) => {
+      const books = game.bookmakers ?? [];
+      const { variant, rows } = aggregateOutcomes(books, marketKey);
+  
+      // If this is a player-prop schema and the search matched a player by outcome,
+      // only show that player's rows (but still inferred by structure).
+      const filteredRows =
+        variant === "playerProp" && matchType && matchSource === "outcome"
+          ? rows.filter((r) => (r.description ?? "") === matchType)
+          : rows;
+  
+      if (!filteredRows.length) return renderGameCard(game);
+  
+      const showSubject = variant === "playerProp";
+      const showLine = variant === "total" || variant === "playerProp";
+      const marketLabel = humanizeMarketKey(marketKey);
+  
+      const cols =
+        showSubject && showLine ? "grid-cols-4" : showLine ? "grid-cols-3" : "grid-cols-2";
+  
+      return (
+        <li key={game.id} className="border border-black p-4 rounded-md shadow-sm">
+          <div className="mb-1">
+            <div className="font-semibold">
+              {game.home_team} vs {game.away_team}
+            </div>
+            <div className="text-xs text-gray-500">
+              {new Date(game.commence_time).toLocaleString("en-US", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+                timeZoneName: "short",
+              })}
+            </div>
+          </div>
+  
+          <div className="mb-2 text-sm font-semibold">Market: {marketLabel}</div>
+  
+          <div className={`grid ${cols} gap-5 font-semibold text-xs text-gray-600 border-b border-gray-300 pb-1 mb-2`}>
+            <div>{variant === "moneyline" ? "Side" : "Outcome"}</div>
+            {showSubject && <div className="text-center">Player</div>}
+            {showLine && <div className="text-center">Line</div>}
+            <div className="text-center">Price</div>
+          </div>
+  
+          {filteredRows.map((r, idx) => (
+            <div
+              key={`${r.description ?? ""}-${r.name}-${idx}`}
+              className={`grid ${cols} gap-5 items-center text-sm border-t border-gray-200 py-2`}
+            >
+              <div>{r.name}</div>
+  
+              {showSubject && <div className="text-center">{r.description ?? "—"}</div>}
+  
+              {showLine && (
+                <div className="text-center">
+                  {r.point != null ? Number(r.point).toFixed(1) : "—"}
+                </div>
+              )}
+  
+              <div className="text-center">
+                {r.price != null ? (
+                  <button
+                    onClick={() => {
+                      const marketType = marketTypeFromVariant(variant);
+  
+                      const payload: any = {
+                        name: r.name,
+                        price: r.price,
+                        bookmaker: game.bookmakers?.[0]?.title,
+                      };
+  
+                      if (r.point != null) payload.point = r.point;
+  
+                      if (variant === "playerProp") {
+                        payload.player = r.description;
+                        payload.stat = marketLabel; // derived from marketKey, not hardcoded map
+                      }
+  
+                      if (variant === "total") {
+                        payload.matchup = `${game.home_team} vs ${game.away_team}`;
+                      }
+  
+                      addToParlay(game.id, payload, marketType);
+                    }}
+                    className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
+                  >
+                    {convertDecimalToAmerican(r.price)}
+                  </button>
+                ) : (
+                  "-"
+                )}
+              </div>
+            </div>
+          ))}
+        </li>
+      );
+    };  
+
+  // Upcoming games card (unchanged layout)
+  const renderGameCard = (game: any) => {
+    const teams = [game.home_team, game.away_team];
+
+    return (
+      <li
+        key={game.id}
+        className="border border-black p-4 rounded-md shadow-sm"
+      >
+        <div className="mb-1">
+          <div className="font-semibold">
+            {game.home_team} vs {game.away_team}
+          </div>
+          <div className="text-xs text-gray-500">
+            {new Date(game.commence_time).toLocaleString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+              timeZoneName: "short",
+            })}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-5 font-semibold text-xs text-gray-600 border-b border-gray-300 pb-1 mb-2">
+          <div>Team</div>
+          <div className="text-center">Moneyline</div>
+          <div className="text-center">Spread</div>
+          <div className="text-center">Total</div>
+        </div>
+
+        {teams.map((teamName) => {
+          const isHomeTeam = teamName === game.home_team;
+
+          const avgML = getAveragePrice(
+            "h2h",
+            teamName,
+            game.bookmakers || []
+          );
+          const bestML = game.bookmakers?.[0]?.markets
+            ?.find((m: any) => m.key === "h2h")
+            ?.outcomes?.find((o: any) => o.name === teamName);
+
+          const avgSpread = getAveragePrice(
+            "spreads",
+            teamName,
+            game.bookmakers || []
+          );
+          const bestSpread = game.bookmakers?.[0]?.markets
+            ?.find((m: any) => m.key === "spreads")
+            ?.outcomes?.find((o: any) => o.name === teamName);
+
+          const totalMarket = game.bookmakers?.[0]?.markets?.find(
+            (m: any) => m.key === "totals"
+          );
+
+          return (
+            <div
+              key={teamName}
+              className="grid grid-cols-4 gap-5 items-center text-sm border-t border-gray-200 py-2"
+            >
+              <div>
+                <ResponsiveTeamName name={teamName} />
+                <div className="text-xs text-gray-500">
+                  {teamRecords[teamName]
+                    ? isSoccerLeague(selectedLeague) &&
+                      teamRecords[teamName].draws !== undefined
+                      ? `(${teamRecords[teamName].wins}-${teamRecords[teamName].draws}-${teamRecords[teamName].losses})`
+                      : `(${teamRecords[teamName].wins}-${teamRecords[teamName].losses})`
+                    : ""}
+                </div>
+              </div>
+
+              <div className="text-center">
+                {avgML && bestML ? (
+                  <button
+                    onClick={() =>
+                      addToParlay(
+                        game.id,
+                        {
+                          ...bestML,
+                          bookmaker: game.bookmakers[0]?.title,
+                        },
+                        "moneyline"
+                      )
+                    }
+                    className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
+                  >
+                    {convertDecimalToAmerican(avgML)}
+                  </button>
+                ) : (
+                  "-"
+                )}
+              </div>
+
+              <div className="text-center">
+                {avgSpread && bestSpread ? (
+                  <button
+                    onClick={() =>
+                      addToParlay(
+                        game.id,
+                        {
+                          ...bestSpread,
+                          bookmaker: game.bookmakers?.[0]?.title,
+                        },
+                        "spread"
+                      )
+                    }
+                    className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs whitespace-nowrap"
+                  >
+                    {bestSpread.point > 0
+                      ? `+${bestSpread.point}`
+                      : bestSpread.point}{" "}
+                    {convertDecimalToAmerican(avgSpread)}
+                  </button>
+                ) : (
+                  "-"
+                )}
+              </div>
+
+              <div className="text-center">
+                {totalMarket?.outcomes?.some((o: any) =>
+                  isHomeTeam ? o.name === "Over" : o.name === "Under"
+                ) ? (
+                  totalMarket.outcomes
+                    .filter((o: any) =>
+                      isHomeTeam ? o.name === "Over" : o.name === "Under"
+                    )
+                    .map((outcome: any) => {
+                      const avgTotal = getAveragePrice(
+                        "totals",
+                        outcome.name,
+                        game.bookmakers || []
+                      );
+                      return (
+                        <button
+                          key={outcome.name}
+                          onClick={() =>
+                            addToParlay(
+                              game.id,
+                              {
+                                ...outcome,
+                                matchup: `${game.home_team} vs ${game.away_team}`,
+                                bookmaker: game.bookmakers?.[0]?.title,
+                              },
+                              "total"
+                            )
+                          }
+                          className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
+                        >
+                          <div className="flex flex-col sm:flex-row items-center justify-center leading-tight gap-x-1">
+                            <span>
+                              {outcome.name === "Over" ? "O" : "U"}{" "}
+                              {outcome.point}
+                            </span>
+                            <span>
+                              {avgTotal
+                                ? convertDecimalToAmerican(avgTotal)
+                                : "-"}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })
+                ) : (
+                  <span>-</span>
+                )}
+              </div>
+
+              <div></div>
+            </div>
+          );
+        })}
+      </li>
+    );
+  };
+
+  // Decide which search card to render (NEW: schema-driven, no hardcoded market keys)
+  const renderSearchMatchCard = () => {
+    if (!searchMatch || !searchMatch.success || !searchMatch.data) return null;
+    const game = searchMatch.data;
+
+    if (!searchMarketKey) return renderGameCard(game);
+
+    return renderGenericSearchMarketCard(
+      game,
+      searchMarketKey,
+      searchMatchType,
+      searchMatchSource
+    );
+  };
+  
 
   return (
     <div className="min-h-screen bg-white text-black font-sans">
@@ -658,7 +1030,6 @@ export default function HomePage() {
             </svg>
           </div>
 
-          {/* Desktop Links */}
           <ul className="hidden md:flex flex-nowrap justify-end gap-x-6 text-sm font-medium text-black">
             <li>
               <Link href="/promotions" className="hover:underline">
@@ -677,7 +1048,6 @@ export default function HomePage() {
             </li>
           </ul>
 
-          {/* Mobile Menu Button */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="md:hidden text-black focus:outline-none"
@@ -690,7 +1060,6 @@ export default function HomePage() {
           </button>
         </div>
 
-        {/* Mobile Dropdown Menu */}
         <div
           className={`overflow-hidden transition-all duration-300 ease-in-out ${
             isMobileMenuOpen ? "max-h-40 opacity-100 mt-4" : "max-h-0 opacity-0"
@@ -728,12 +1097,11 @@ export default function HomePage() {
         </div>
       </nav>
 
-      {/* Main Content */}
+      {/* Main content */}
       <main className="flex flex-col items-center justify-start pt-10 px-6">
-        {/* Search + League Bar */}
+        {/* Search bar */}
         <div className="w-full max-w-3xl mx-auto">
           <div className="relative flex items-center border border-black rounded-full shadow-md bg-white overflow-hidden w-full">
-            {/* Hidden span for measuring select width */}
             <span
               ref={textRef}
               className="absolute invisible whitespace-nowrap text-sm font-normal pl-3 py-3"
@@ -741,7 +1109,6 @@ export default function HomePage() {
               {selectedLeague}
             </span>
 
-            {/* Custom select wrapper with dropdown icon */}
             <div className="relative flex-shrink-0">
               <select
                 className="appearance-none pl-3 pr-6 py-3 bg-white text-black text-sm rounded-l-full focus:outline-none border-r border-black"
@@ -756,7 +1123,6 @@ export default function HomePage() {
                 ))}
               </select>
 
-              {/* Custom dropdown arrow */}
               <div className="pointer-events-none absolute right-2 top-1/2 transform -translate-y-1/2 text-black">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -775,19 +1141,13 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Search Input + clickable icon */}
-            <form
-              onSubmit={handleSubmit}
-              className="flex-1 min-w-0 relative"   // <-- make form relative
-            >
+            <form onSubmit={handleSubmit} className="flex-1 min-w-0 relative">
               <input
                 type="text"
                 name="search"
                 placeholder="Search"
                 className="w-full px-4 py-3 pr-10 bg-white text-black text-sm focus:outline-none rounded-r-full"
               />
-
-              {/* submit button with icon */}
               <button
                 type="submit"
                 className="absolute right-4 top-1/2 -translate-y-1/2 flex-shrink-0 focus:outline-none"
@@ -811,258 +1171,99 @@ export default function HomePage() {
           </div>
         </div>
 
+        <div className="w-full max-w-3xl mx-auto mt-4">
+          {searchLoading && (
+            <div className="text-xs text-gray-500">Searching…</div>
+          )}
+          {searchError && (
+            <div className="text-xs text-red-600">{searchError}</div>
+          )}
+        </div>
 
-  {/* 🔽 NEW: Search result dump under the bar */}
-  <div className="w-full max-w-3xl mx-auto mt-4">
-    {searchLoading && (
-      <div className="text-xs text-gray-500">Searching…</div>
-    )}
-
-    {searchError && (
-      <div className="text-xs text-red-600">{searchError}</div>
-    )}
-
-    {searchResult && (
-      <pre className="text-xs bg-gray-50 border border-gray-200 rounded p-3 overflow-x-auto">
-        {JSON.stringify(searchResult, null, 2)}
-      </pre>
-    )}
-  </div>
-
-        {/* Upcoming Games Section */}
+        {/* Search results OR upcoming games */}
         <div ref={gamesSectionRef} className="w-full max-w-3xl mt-10">
-          <h2 className="text-lg font-bold mb-1">
-            Upcoming{" "}
-            {selectedLeague === "Select League" ? "" : `${selectedLeague} `}Games
-          </h2>
-          <p className="text-xs text-gray-500 mb-4">
-            Displayed singles odds are averaged and may not reflect the most current
-            odds
-          </p>
+          {searchMatch && searchMatch.success && searchMatch.data ? (
+            <>
+              <h2 className="text-lg font-bold mb-1">Search Results</h2>
+              <p className="text-xs text-gray-500 mb-4">
+                Showing results for{" "}
+                <span className="font-semibold">
+                  {searchMatchType || "your query"}
+                </span>
+                {searchMatchSource && searchMatchSource !== "none"
+                  ? ` (matched by ${searchMatchSource})`
+                  : ""}
+              </p>
 
-          {!Array.isArray(odds) || odds.length === 0 ? (
-            <p className="text-sm text-gray-500">
-              Check back later for {selectedLeague} matchups.
-            </p>
+              <ul className="space-y-4">{renderSearchMatchCard()}</ul>
+
+              <button
+                onClick={() => {
+                  setSearchMatch(null);
+                  setSearchMatchType(null);
+                  setSearchMatchSource(null);
+                  setSearchMarketKey(null);
+                }}
+                className="mt-4 text-xs px-3 py-1 border border-black rounded hover:bg-gray-100"
+              >
+                Back to Upcoming Games
+              </button>
+            </>
           ) : (
             <>
-              <ul className="space-y-4">
-                {paginatedOdds.map((game: any) => {
-                  const teams = [game.home_team, game.away_team];
+              <h2 className="text-lg font-bold mb-1">
+                Upcoming{" "}
+                {selectedLeague === "Select League" ? "" : `${selectedLeague} `}Games
+              </h2>
+              <p className="text-xs text-gray-500 mb-4">
+                Displayed singles odds are averaged and may not reflect the most
+                current odds
+              </p>
 
-                  return (
-                    <li
-                      key={game.id}
-                      className="border border-black p-4 rounded-md shadow-sm"
-                    >
-                      {/* Matchup Line */}
-                      <div className="mb-1">
-                        <div className="font-semibold">
-                          {game.home_team} vs {game.away_team}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {new Date(game.commence_time).toLocaleString("en-US", {
-                            weekday: "short",
-                            month: "short",
-                            day: "numeric",
-                            hour: "numeric",
-                            minute: "2-digit",
-                            hour12: true,
-                            timeZoneName: "short",
-                          })}
-                        </div>
-                      </div>
+              {!Array.isArray(odds) || odds.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  Check back later for {selectedLeague} matchups.
+                </p>
+              ) : (
+                <>
+                  <ul className="space-y-4">
+                    {paginatedOdds.map((game: any) => renderGameCard(game))}
+                  </ul>
 
-                      {/* Team Odds Row */}
-                      <div className="grid grid-cols-4 gap-5 font-semibold text-xs text-gray-600 border-b border-gray-300 pb-1 mb-2">
-                        <div>Team</div>
-                        <div className="text-center">Moneyline</div>
-                        <div className="text-center">Spread</div>
-                        <div className="text-center">Total</div>
-                      </div>
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4 text-xs">
+                      <button
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
+                        disabled={currentPage === 1}
+                        className="px-2 py-1 border rounded disabled:opacity-50"
+                      >
+                        Previous
+                      </button>
 
-                      {teams.map((teamName) => {
-                        const isHomeTeam = teamName === game.home_team;
+                      <span>
+                        Page {currentPage} of {totalPages}
+                      </span>
 
-                        const avgML = getAveragePrice(
-                          "h2h",
-                          teamName,
-                          game.bookmakers || []
-                        );
-                        const bestML = game.bookmakers?.[0]?.markets
-                          ?.find((m: any) => m.key === "h2h")
-                          ?.outcomes?.find((o: any) => o.name === teamName);
-
-                        const avgSpread = getAveragePrice(
-                          "spreads",
-                          teamName,
-                          game.bookmakers || []
-                        );
-                        const bestSpread = game.bookmakers?.[0]?.markets
-                          ?.find((m: any) => m.key === "spreads")
-                          ?.outcomes?.find((o: any) => o.name === teamName);
-
-                        const totalMarket = game.bookmakers?.[0]?.markets?.find(
-                          (m: any) => m.key === "totals"
-                        );
-
-                        return (
-                          <div
-                            key={teamName}
-                            className="grid grid-cols-4 gap-5 items-center text-sm border-t border-gray-200 py-2"
-                          >
-                            {/* Team Name + Record */}
-                            <div>
-                              <ResponsiveTeamName name={teamName} />
-                              <div className="text-xs text-gray-500">
-                                {teamRecords[teamName]
-                                  ? isSoccerLeague(selectedLeague) &&
-                                    teamRecords[teamName].draws !== undefined
-                                    ? `(${teamRecords[teamName].wins}-${teamRecords[teamName].draws}-${teamRecords[teamName].losses})`
-                                    : `(${teamRecords[teamName].wins}-${teamRecords[teamName].losses})`
-                                  : ""}
-                              </div>
-                            </div>
-
-                            {/* Moneyline */}
-                            <div className="text-center">
-                              {avgML && bestML ? (
-                                <button
-                                  onClick={() =>
-                                    addToParlay(
-                                      game.id,
-                                      {
-                                        ...bestML,
-                                        bookmaker: game.bookmakers[0]?.title,
-                                      },
-                                      "moneyline"
-                                    )
-                                  }
-                                  className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
-                                >
-                                  {convertDecimalToAmerican(avgML)}
-                                </button>
-                              ) : (
-                                "-"
-                              )}
-                            </div>
-
-                            {/* Spread */}
-                            <div className="text-center">
-                              {avgSpread && bestSpread ? (
-                                <button
-                                  onClick={() =>
-                                    addToParlay(
-                                      game.id,
-                                      {
-                                        ...bestSpread,
-                                        bookmaker: game.bookmakers?.[0]?.title,
-                                      },
-                                      "spread"
-                                    )
-                                  }
-                                  className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs whitespace-nowrap"
-                                >
-                                  {bestSpread.point > 0
-                                    ? `+${bestSpread.point}`
-                                    : bestSpread.point}{" "}
-                                  {convertDecimalToAmerican(avgSpread)}
-                                </button>
-                              ) : (
-                                "-"
-                              )}
-                            </div>
-
-                            {/* Total */}
-                            <div className="text-center">
-                              {totalMarket?.outcomes?.some((o: any) =>
-                                isHomeTeam ? o.name === "Over" : o.name === "Under"
-                              ) ? (
-                                totalMarket.outcomes
-                                  .filter((o: any) =>
-                                    isHomeTeam ? o.name === "Over" : o.name === "Under"
-                                  )
-                                  .map((outcome: any) => {
-                                    const avgTotal = getAveragePrice(
-                                      "totals",
-                                      outcome.name,
-                                      game.bookmakers || []
-                                    );
-                                    return (
-                                      <button
-                                        key={outcome.name}
-                                        onClick={() =>
-                                          addToParlay(
-                                            game.id,
-                                            {
-                                              ...outcome,
-                                              matchup: `${game.home_team} vs ${game.away_team}`,
-                                              bookmaker: game.bookmakers?.[0]?.title,
-                                            },
-                                            "total"
-                                          )
-                                        }
-                                        className="px-2 py-1 bg-black text-white rounded hover:bg-gray-800 text-xs"
-                                      >
-                                        <div className="flex flex-col sm:flex-row items-center justify-center leading-tight gap-x-1">
-                                          <span>
-                                            {outcome.name === "Over" ? "O" : "U"}{" "}
-                                            {outcome.point}
-                                          </span>
-                                          <span>
-                                            {avgTotal
-                                              ? convertDecimalToAmerican(avgTotal)
-                                              : "-"}
-                                          </span>
-                                        </div>
-                                      </button>
-                                    );
-                                  })
-                              ) : (
-                                <span>-</span>
-                              )}
-                            </div>
-
-                            <div></div>
-                          </div>
-                        );
-                      })}
-                    </li>
-                  );
-                })}
-              </ul>
-
-              {/* Pagination Controls */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4 text-xs">
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="px-2 py-1 border rounded disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-
-                  <span>
-                    Page {currentPage} of {totalPages}
-                  </span>
-
-                  <button
-                    onClick={() =>
-                      setCurrentPage((p) => Math.min(totalPages, p + 1))
-                    }
-                    disabled={currentPage === totalPages}
-                    className="px-2 py-1 border rounded disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </div>
+                      <button
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
+                        disabled={currentPage === totalPages}
+                        className="px-2 py-1 border rounded disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
         </div>
 
-        {/* Parlay Builder Section */}
+        {/* Parlay builder */}
         <div className="w-full max-w-3xl mt-10">
           <h2 className="text-lg font-bold mb-4">Your Parlay</h2>
           {parlay.length === 0 ? (
@@ -1084,6 +1285,10 @@ export default function HomePage() {
                         } (Spread)`}
                       {pick.marketType === "total" &&
                         `${pick.matchup} ${pick.name} ${pick.point} (Total)`}
+                      {pick.marketType === "player_prop" &&
+                        `${pick.player} ${pick.name} ${pick.point ?? ""} ${
+                          pick.stat || ""
+                        } (Player Prop)`}
                     </span>
                     <button
                       className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
@@ -1094,6 +1299,7 @@ export default function HomePage() {
                   </li>
                 ))}
               </ul>
+
               <div className="mb-4">
                 <label className="block text-sm font-semibold mb-1">
                   Odds Format
@@ -1107,14 +1313,18 @@ export default function HomePage() {
                   <option value="American">American</option>
                 </select>
               </div>
+
               {parlay.length >= 2 && (
                 <div className="text-sm font-semibold mb-4 space-y-2">
-                  <div>Parlay Odds ({oddsView}): {getFormattedOdds()}</div>
+                  <div>
+                    Parlay Odds ({oddsView}): {getFormattedOdds()}
+                  </div>
                   <div className="text-xs text-gray-600">
                     Best Book: {bestBook || "N/A"}
                   </div>
                 </div>
               )}
+
               <button
                 className="text-xs px-3 py-1 bg-gray-200 text-black rounded hover:bg-gray-300"
                 onClick={clearParlay}
@@ -1125,7 +1335,7 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* Parlay Pick Toast Notification */}
+        {/* Toast */}
         {showParlayToast && (
           <div className="fixed bottom-4 inset-x-0 flex justify-center z-50 pointer-events-none">
             <div
@@ -1146,14 +1356,10 @@ export default function HomePage() {
         )}
       </main>
 
-
       <footer className="w-full border-t border-black mt-10 py-10 px-4 bg-white flex justify-center">
         <div className="w-full max-w-screen-lg flex flex-col md:flex-row gap-8">
-          {/* Disclaimer Section */}
           <aside className="flex-1 flex flex-col items-center md:items-start text-center md:text-left">
-            <h2 className="text-sm font-bold text-gray-500 mb-2">
-              Disclaimer
-            </h2>
+            <h2 className="text-sm font-bold text-gray-500 mb-2">Disclaimer</h2>
             <p className="text-xs text-gray-600">
               Companies featured on this website may be our partners that
               compensate us if you sign up through our links. Must be 21+ and
@@ -1163,33 +1369,20 @@ export default function HomePage() {
             </p>
           </aside>
 
-          {/* Links Section */}
           <nav className="flex-1 flex flex-col items-center md:items-start text-xs gap-1">
             <h2 className="text-sm font-bold text-gray-500 mb-2">
               Quick Links
             </h2>
-            <Link
-              href="/promotions"
-              className="hover:underline text-gray-700"
-            >
+            <Link href="/promotions" className="hover:underline text-gray-700">
               Promotions
             </Link>
-            <Link
-              href="/our-picks"
-              className="hover:underline text-gray-700"
-            >
+            <Link href="/our-picks" className="hover:underline text-gray-700">
               Our Picks
             </Link>
-            <Link
-              href="/sign-up"
-              className="hover:underline text-gray-700"
-            >
+            <Link href="/sign-up" className="hover:underline text-gray-700">
               Sign Up
             </Link>
-            <Link
-              href="/disclaimer"
-              className="hover:underline text-gray-700"
-            >
+            <Link href="/disclaimer" className="hover:underline text-gray-700">
               Disclaimer
             </Link>
             <Link
