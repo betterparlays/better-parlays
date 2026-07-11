@@ -73,7 +73,7 @@ export default function HomePage() {
   const gamesSectionRef = useRef<HTMLDivElement | null>(null);
   const [toastVariant, setToastVariant] = useState<"add" | "delete">("add");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [searchResult, setSearchResult] = useState<any | null>(null);
+  const [, setSearchResult] = useState<any | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
@@ -582,26 +582,6 @@ export default function HomePage() {
     });
     if (prices.length === 0) return null;
     return prices.reduce((acc, val) => acc + val, 0) / prices.length;
-  };
-
-  // NEW: average point helper
-  const getAveragePoint = (
-    marketKey: string,
-    outcomeName: string,
-    bookmakers: any[]
-  ) => {
-    const points: number[] = [];
-    bookmakers.forEach((book: any) => {
-      const market = book.markets?.find((m: any) => m.key === marketKey);
-      const outcome = market?.outcomes?.find(
-        (o: any) => o.name === outcomeName
-      );
-      if (outcome && outcome.point != null) {
-        points.push(Number(outcome.point));
-      }
-    });
-    if (points.length === 0) return null;
-    return points.reduce((acc, val) => acc + val, 0) / points.length;
   };
 
     // ---------- NEW: schema-driven market rendering helpers ----------
